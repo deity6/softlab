@@ -1,0 +1,3967 @@
+@import "tailwindcss";
+/* HERO 光球（触摸端虚拟指针）的样式层 —— 只在 ?vp=1 / 移动 UA 下才会渲染出东西 */
+@import "./orb.css";
+
+/* ==========================================================================
+   SOFT LAB — design tokens
+   冷灰底 + 单一主蓝，配色与动效令牌（--mo-*）同源，保证按钮和页面是一套。
+   排版保留技术性：大标题、等宽元数据、可见栅格线。
+   ========================================================================== */
+
+@theme {
+  --color-paper: #f5f7fa;
+  --color-paper-deep: #e8ecf2;
+  --color-paper-lift: #ffffff;
+  --color-ink: #14181f;
+  --color-ink-soft: #4c5766;
+  --color-ink-faint: #8b95a5;
+  --color-accent: #3b82f6;
+  --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Consolas,
+    "Liberation Mono", Menlo, monospace;
+}
+
+:root {
+  --paper: #f5f7fa;
+  --paper-deep: #e8ecf2;
+  --paper-lift: #ffffff;
+  --ink: #14181f;
+  --ink-soft: #4c5766;
+  --ink-faint: #8b95a5;
+  --line: rgba(20, 24, 31, 0.1);
+  --line-strong: rgba(20, 24, 31, 0.24);
+  --accent: #3b82f6;
+  --accent-soft: #60a5fa;
+  --accent-wash: #dbeafe;
+  --jelly-red: #ff243e;
+  --jelly-jade: #00bc7d;
+  --jelly-amber: #f6ad00;
+  --jelly-berry: #627bef;
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Liquid-glass surface. Named because "a white thing at 5%" is not a value
+     you can reason about when the thing behind it is a sunset at luminance
+     174 — the panel's readability comes from this number, not from the blur. */
+  --glass-fill: rgb(9 13 24 / 0.56);
+  --glass-edge: rgb(255 255 255 / 0.16);
+  --glass-top: 0.4;
+
+  /* The orb's three material constants. In light mode the sphere is a white
+     haze: a low-alpha white overlay plus a 1.12x gain. Both of those are
+     near-invisible on a pale page (245 * 1.12 clips at 255), and on a dark
+     page they are worse than nothing — the white reads as grey dust, which
+     is exactly the complaint. Under dark mode the gain has to go *up* and
+     the edge has to be cut by *darkening*, because on a near-black page the
+     only way an edge reads is if something is darker than the page. */
+  --orb-lens-gain: 1.12;
+  --orb-lens-hi: 0.15;
+  --orb-lens-hi-mid: 0.1;
+  --orb-lens-hi-low: 0.05;
+  --orb-edge-dark: 0.08;
+  --orb-edge-dark-2: 0.17;
+  --orb-shadow: 0.14;
+  --orb-shadow-2: 0.24;
+  /* Front-loaded deceleration: most of the travel happens immediately, then a
+     short settle. Reads as quick-and-clean rather than as a slide. */
+  --ease-out-soft: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --shell-pad: clamp(16px, 3.4vw, 46px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+html {
+  background: var(--paper);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Inter", "Helvetica Neue", "PingFang SC", "Microsoft YaHei",
+    system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  font-synthesis-weight: none;
+  /* No `-webkit-font-smoothing: antialiased` here on purpose: on Windows it
+     switches text off subpixel rendering, and 9–11px mono labels go visibly
+     grey and blurry. Keep the default (ClearType) so small type stays crisp. */
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+canvas {
+  display: block;
+}
+
+/* ---------- typography helpers ---------- */
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.mono-sm {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.display {
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 0.84;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* ---------- layout shell ---------- */
+
+.shell {
+  position: relative;
+  z-index: 2;
+  padding: 0 var(--shell-pad);
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+.rule {
+  height: 1px;
+  background: var(--line);
+  border: 0;
+  margin: 0;
+}
+
+/* ---------- header ---------- */
+
+.site-head {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(14px) saturate(140%);
+  background: color-mix(in srgb, var(--paper) 76%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+
+.site-head__row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 56px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex: 0 0 auto;
+}
+
+.brand__mark {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-size: 17px;
+  text-transform: uppercase;
+}
+
+.brand__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  translate: 0 -1px;
+}
+
+/* The tagline is the first thing to go when the bar gets tight. */
+.back-link {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.back-link:hover {
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.site-nav {
+  display: flex;
+  gap: 0;
+  margin-left: auto;
+  align-items: center;
+  padding-top: 6px;
+}
+
+/* Nav is quiet type, not pills — the cards below do the shouting. Each label
+   carries its Chinese name underneath, so the bar reads as a legend. */
+.nav-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 4px 2px 5px;
+  color: var(--ink-faint);
+  transition: color 0.25s var(--ease-soft);
+  white-space: nowrap;
+}
+
+.nav-tab + .nav-tab {
+  margin-left: 26px;
+}
+
+.nav-tab__en {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.nav-tab__cn {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  transition: color 0.25s var(--ease-soft);
+}
+
+.nav-tab:hover {
+  color: var(--ink);
+}
+
+.nav-tab[data-active='true'] {
+  color: var(--ink);
+}
+
+.nav-tab[data-active='true'] .nav-tab__cn {
+  color: var(--accent);
+}
+
+/* The tell for "you are here": a dot that grows in, plus an underline that
+   draws itself under the English label. */
+.nav-tab__dot {
+  position: absolute;
+  left: 0;
+  top: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  scale: 0;
+  transition: scale 0.3s var(--ease-soft);
+}
+
+.nav-tab[data-active='true'] .nav-tab__dot {
+  scale: 1;
+}
+
+.nav-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 1px;
+  width: 100%;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.35s var(--ease-soft);
+}
+
+.nav-tab:hover::after {
+  transform: scaleX(1);
+}
+
+.nav-tab[data-active='true']::after {
+  transform: scaleX(1);
+}
+
+/* When a detail page is open, name it under the section label. */
+.nav-tab__sub {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+
+/* ---------- hero ---------- */
+
+.hero {
+  position: relative;
+  padding: clamp(48px, 9vh, 118px) 0 clamp(30px, 5vh, 62px);
+}
+
+/* A <canvas> is a replaced element: `inset: ... 0 0` cannot stretch it — it
+   falls back to the intrinsic size of its width/height attributes, which the
+   render loop then keeps growing. Explicit width/height is mandatory. */
+.hero__field {
+  position: absolute;
+  top: -56px;
+  left: 0;
+  width: 100%;
+  height: calc(100% + 56px);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.95;
+  mask-image: linear-gradient(to bottom, #000 0%, #000 54%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 54%, rgba(0, 0, 0, 0) 100%);
+}
+
+.hero__inner {
+  position: relative;
+  z-index: 2;
+}
+
+.hero__kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-soft);
+  margin-bottom: clamp(20px, 3vh, 34px);
+}
+
+.hero__kicker .rule {
+  flex: 1;
+}
+
+.hero__title {
+  font-size: clamp(58px, 15.5vw, 232px);
+  display: block;
+}
+
+.hero__title em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.hero__lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: clamp(20px, 4vw, 72px);
+  margin-top: clamp(26px, 4.5vh, 54px);
+  align-items: start;
+}
+
+.hero__lede {
+  font-size: clamp(15px, 1.35vw, 19px);
+  line-height: 1.5;
+  max-width: 46ch;
+  color: var(--ink);
+  margin: 0;
+}
+
+.hero__lede b {
+  font-weight: 600;
+  box-shadow: inset 0 -0.42em 0 color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.hero__meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 18px;
+  align-content: start;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.hero__meta dt {
+  color: var(--ink-faint);
+}
+
+.hero__meta dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 860px) {
+  .hero__lower {
+    grid-template-columns: 1fr;
+  }
+  .hero__field {
+    top: -30px;
+    height: calc(100% + 30px);
+  }
+}
+
+/* ---------- section tabs (the three cards) ---------- */
+
+.tab-deck {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  margin-top: clamp(20px, 4vh, 44px);
+}
+
+.tab-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 178px;
+  padding: 20px 20px 18px;
+  text-align: left;
+  background: var(--paper);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+  transition:
+    background 0.45s var(--ease-soft),
+    box-shadow 0.45s var(--ease-soft),
+    transform 0.45s var(--ease-soft),
+    color 0.45s var(--ease-soft);
+}
+
+/* The loading bar. Slow and decelerating on purpose — it is meant to read as
+   something filling in, not a switch flipping. */
+.tab-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tab-card:hover {
+  background: var(--paper-lift);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 26px rgb(20 24 31 / 0.07),
+    inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+.tab-card:hover::after {
+  transform: scaleX(1);
+}
+
+/* Selected = raised white card with a hairline ring, NOT a solid fill. The
+   accent stays in the bar and the dot; an ink-filled card read as an error. */
+.tab-card[data-on='true'] {
+  background: var(--paper-lift);
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    0 14px 30px rgb(20 24 31 / 0.09);
+}
+
+.tab-card[data-on='true']::after {
+  transform: scaleX(1);
+}
+
+.tab-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tab-card__no {
+  color: var(--accent);
+}
+
+.tab-card__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.4;
+  transition: opacity 0.45s var(--ease-soft), background 0.45s var(--ease-soft),
+    border-color 0.45s var(--ease-soft), scale 0.45s var(--ease-soft);
+}
+
+.tab-card:hover .tab-card__dot {
+  opacity: 0.8;
+}
+
+.tab-card[data-on='true'] .tab-card__dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
+  scale: 1.25;
+}
+
+.tab-card__name {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: clamp(19px, 2.1vw, 26px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.tab-card__cn {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--ink-faint);
+  transition: color 0.45s var(--ease-soft);
+}
+
+.tab-card[data-on='true'] .tab-card__cn {
+  color: var(--accent);
+}
+
+.tab-card__lede {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 30ch;
+  transition: color 0.45s var(--ease-soft);
+}
+
+.tab-card__meta {
+  margin-top: auto;
+}
+
+/* ---------- panel shell (swapped by the tabs) ---------- */
+
+.tabpanel {
+  padding-top: clamp(30px, 5vh, 56px);
+  animation: panel-in 0.5s var(--ease-soft) both;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tabpanel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 0 0 14px;
+}
+
+.tabpanel-head__no {
+  color: var(--accent);
+}
+
+.tabpanel-head h2 {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
+
+.tabpanel-head .rule {
+  flex: 1;
+}
+
+.tabpanel-lede {
+  margin: 0 0 clamp(22px, 3.4vh, 36px);
+  max-width: 62ch;
+  font-size: 14px;
+  line-height: 1.62;
+  color: var(--ink-soft);
+}
+
+/* ---------- reveal (borrowed from the reference site) ---------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition:
+    opacity 0.8s var(--ease-soft),
+    transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reveal.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- experiment index ---------- */
+
+.index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.ex-card {
+  position: relative;
+  background: var(--paper);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 22px 22px 20px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 300px;
+  overflow: hidden;
+  transition:
+    background 0.4s var(--ease-soft),
+    box-shadow 0.4s var(--ease-soft),
+    transform 0.4s var(--ease-soft);
+}
+
+/* A lift, never a fill. The earlier ink-invert was instant and read as an
+   error state; this is the same idea the tab cards use, on a longer fuse. */
+.ex-card:hover {
+  background: var(--paper-lift);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 34px rgb(20 24 31 / 0.08);
+}
+
+/* Light that follows the cursor across the card. */
+.ex-card__glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    380px circle at var(--mx, -500px) var(--my, -500px),
+    color-mix(in srgb, var(--accent) 13%, transparent),
+    transparent 64%
+  );
+  transition: opacity 0.45s var(--ease-soft);
+}
+
+.ex-card:hover .ex-card__glow {
+  opacity: 1;
+}
+
+.ex-card > *:not(.ex-card__glow) {
+  position: relative;
+  z-index: 1;
+}
+
+.ex-card__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ex-card__no {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+
+.ex-card__thumb {
+  position: relative;
+  height: 118px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  background: var(--paper-lift);
+  transition: border-color 0.35s;
+}
+
+.ex-card:hover .ex-card__thumb {
+  border-color: var(--line-strong);
+}
+
+.ex-card__thumb canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.ex-card__title {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.96;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.ex-card__sub {
+  font-size: 13px;
+  letter-spacing: 0;
+  font-weight: 500;
+  opacity: 0.66;
+  text-transform: none;
+}
+
+.ex-card__lede {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  transition: color 0.35s;
+}
+
+.ex-card__tags {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 3px 9px;
+  opacity: 0.72;
+}
+
+/* Sits in the flow under the tags rather than absolutely positioned in the
+   corner — it used to collide with them at narrow widths. Always faintly
+   visible so the card reads as a link before you hover. */
+.ex-card__go {
+  display: flex;
+  justify-content: flex-end;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  opacity: 0.55;
+  transition: color 0.4s var(--ease-soft), opacity 0.4s var(--ease-soft),
+    translate 0.4s var(--ease-soft);
+}
+
+.ex-card:hover .ex-card__go {
+  color: var(--accent);
+  opacity: 1;
+  translate: 2px 0;
+}
+
+/* A card for an experiment that is announced but not open yet. It keeps its
+   description — the idea belongs on the record — but the thumbnail is drained
+   and flagged, so nobody mistakes it for something they can play. */
+.ex-card[data-wip='true'] .ex-card__thumb canvas {
+  opacity: 0.38;
+  filter: grayscale(1);
+}
+
+.ex-card__flag {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  padding: 5px 12px;
+  transition: background 0.35s, color 0.35s, border-color 0.35s;
+}
+
+.ex-card:hover .ex-card__flag {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---------- footer ---------- */
+
+.site-foot {
+  margin-top: clamp(40px, 7vh, 88px);
+  border-top: 1px solid var(--line);
+  padding: 18px 0 34px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  align-items: baseline;
+  color: var(--ink-faint);
+}
+
+.site-foot .spacer {
+  flex: 1;
+}
+
+/* ---------- experiment page chrome ---------- */
+
+.exp-page {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* An experiment page owns the viewport: header at the top, footer at the
+   bottom, and the stage taking whatever is left. Without this the page is
+   `min-height: 100dvh` *plus* the header and footer, so on a 900px window the
+   document measured 1090px and scrolled — and a stage that scrolls is a stage
+   whose panel and canvas are never in the same frame. The phone breakpoint
+   already did this; it belongs on every width. */
+.shell:has(.exp-page) {
+  height: 100dvh;
+  /* `clip`, not `hidden`: `hidden` would make this a scroll container and
+     the sticky header inside would stop sticking. The drawer parks itself
+     off the bottom edge while collapsed and a translated box still counts
+     toward the document's scroll width — measured at 247px of phantom
+     horizontal overflow on a 1440 viewport during the opening reveal. */
+  overflow: clip;
+}
+
+.shell:has(.exp-page) .exp-page {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+/* The footer keeps its own line in the DOM (it holds the version and the
+   changelog link, both worth keeping reachable) but does not get a place in
+   the layout. Measured overlap between the button bar and the footer was
+   9648px² — the same on all nine viewports tested, desktop included, because
+   both were independently positioned. Taking the footer out of flow settles
+   it once, for every width, instead of per-breakpoint. */
+.shell:has(.exp-page) > .site-foot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.exp-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0 10px;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.exp-bar__title {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  font-size: 17px;
+}
+
+.exp-bar__spacer {
+  flex: 1;
+}
+
+/* ---------- soft matter lab ---------- */
+
+.lab {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: min(70vh, 620px);
+  /* The stage asks how much height it actually got, rather than every
+     descendant re-deriving it. This is what lets the drawer size itself
+     against the real leftover space instead of against a guess. */
+  container-type: size;
+  container-name: stage;
+}
+
+.lab__stage {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  cursor: grab;
+}
+
+.lab__stage:active {
+  cursor: grabbing;
+}
+
+.lab__hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.lab__title {
+  position: absolute;
+  top: clamp(14px, 3vh, 34px);
+  left: clamp(4px, 1vw, 20px);
+  pointer-events: none;
+}
+
+.lab__title h1 {
+  margin: 0;
+  font-size: clamp(38px, 6.6vw, 96px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.84;
+  text-transform: uppercase;
+}
+
+.lab__title h1 i {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.lab__title p {
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* Bottom dock: the hint plus the always-available controls. Lives inside the
+   HUD (pointer-events: none) so only the buttons themselves are clickable. */
+.lab__dock {
+  /* Pinned to the viewport, not the stage. The stage's height comes from a
+     chain of flex items, and a few stray pixels anywhere in that chain are
+     enough to push the controls below the fold. */
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  translate: -50% 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  pointer-events: none;
+  max-width: calc(100% - 24px);
+}
+
+.lab__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+/* Four buttons wrap to two rows on a narrow phone (measured: "存下这套"
+   dropped onto its own line, which pushed the group up over the picture).
+   Two options: shrink the type, or let the group scroll sideways. Shrinking
+   is better here — the labels are already 3 characters and going smaller
+   makes them unreadable, whereas a sideways scroll hides half the controls
+   with no affordance at all. So: tighter padding and a smaller label at the
+   narrowest widths, and a scroll as the last resort below that. */
+@media (max-width: 520px) {
+  .lab__controls {
+    gap: 5px;
+  }
+
+  .lab__controls .mo-btn--sm {
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+  }
+}
+
+/* Below this there is no honest way to fit four Chinese labels, so the group
+   becomes a single scrollable row rather than a two-row block that eats the
+   picture. The mask fades the right edge so it reads as "more this way". */
+@media (max-width: 380px) {
+  .lab__controls {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 22px), transparent 100%);
+  }
+
+  .lab__controls::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lab__controls .mo-btn--sm {
+    flex: none;
+  }
+}
+
+.lab__hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  transition: opacity 0.5s;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lab__hint[data-dim="true"] {
+  opacity: 0;
+}
+
+/* A toggled-on control (paused / slow motion) reads as a state, not a button. */
+.lab__controls .mo-btn[data-on="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.panel {
+  position: absolute;
+  top: clamp(14px, 3vh, 34px);
+  right: clamp(14px, 2vw, 32px);
+  width: 258px;
+  z-index: 5;
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  border: 1px solid var(--line-strong);
+  backdrop-filter: blur(12px);
+  padding: 14px 15px 16px;
+  pointer-events: auto;
+  max-height: calc(100% - 60px);
+  overflow-y: auto;
+  transition: translate 0.45s var(--ease-soft), opacity 0.3s;
+}
+
+.panel[data-open="false"] {
+  translate: calc(100% + 40px) 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 9px;
+  margin-bottom: 12px;
+}
+
+.panel__head b {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.panel__head span {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.panel__close {
+  font-size: 17px;
+  line-height: 1;
+  padding: 2px 4px;
+  color: var(--ink-soft);
+  transition: color 0.2s;
+}
+
+.panel__close:hover {
+  color: var(--accent);
+}
+
+.field {
+  display: block;
+  margin-bottom: 13px;
+}
+
+.field__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.field__label output {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+
+.field select {
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-lift);
+  color: var(--ink);
+  border-radius: 2px;
+  appearance: none;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--line-strong);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 0;
+  transition: transform 0.15s var(--ease-soft), background 0.15s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.28);
+  background: var(--accent);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--line-strong);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--c);
+  border: 1px solid rgba(20, 24, 31, 0.22);
+  transition: transform 0.2s var(--ease-soft), box-shadow 0.2s;
+  flex: none;
+}
+
+.swatch:hover {
+  transform: scale(1.16);
+}
+
+.swatch[data-on="true"] {
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--ink);
+}
+
+.swatch--custom {
+  position: relative;
+  overflow: hidden;
+  background: conic-gradient(
+    #2bc0e4,
+    #5e6bff,
+    #b61877,
+    #f5600f,
+    #18b670,
+    #f6ad00,
+    #2bc0e4
+  );
+}
+
+.swatch--custom input {
+  position: absolute;
+  inset: -6px;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+/* Explains why the colour swatches appear to do nothing on the two presets
+   whose colour is baked into the shader. */
+.field__note {
+  margin: -8px 0 12px;
+  font-size: 9.5px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+
+.panel__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+/* Panel buttons are motion-system buttons now — see .mo-btn overrides below. */
+
+/* Position only — the button's look and motion come from the motion system. */
+.panel-toggle {
+  position: absolute;
+  top: clamp(14px, 3vh, 34px);
+  right: clamp(14px, 2vw, 32px);
+  z-index: 4;
+  pointer-events: auto;
+  transition:
+    opacity 0.3s var(--ease-soft),
+    transform var(--mo-dur-quick) var(--mo-ease-spring),
+    box-shadow var(--mo-dur-quick) var(--mo-ease-standard),
+    background-color var(--mo-dur-quick) var(--mo-ease-standard),
+    border-color var(--mo-dur-quick) var(--mo-ease-standard),
+    color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+.panel-toggle[data-show="false"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---------- phone layout ----------
+   A phone has no room for a side panel next to a canvas. The canvas keeps the
+   screen; the panel becomes a full-height sheet you pull up when you want it,
+   and everything that only earns its place on a wide screen gets out of the
+   way. */
+@media (max-width: 720px) {
+  .panel {
+    left: 10px;
+    right: 10px;
+    top: 10px;
+    bottom: 10px;
+    width: auto;
+    max-height: none;
+    overflow-y: auto;
+    padding: 14px 15px 18px;
+    /* Opaque while it is a full-height sheet — the translucent look is for
+       floating over a canvas, not for covering one. */
+    background: var(--paper);
+    backdrop-filter: none;
+  }
+
+  /* The sheet covers the dock; no need to reflow anything behind it. */
+  .lab__dock {
+    /* Pinned to the viewport rather than the stage: on a phone the stage's
+       height depends on a chain of flex items, and one stray pixel there
+       pushes the controls off-screen. Below the panel (z-index 5). */
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    translate: none;
+    max-width: none;
+    z-index: 4;
+    gap: 7px;
+  }
+
+  .lab__hint {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 5px 11px;
+  }
+
+  .lab__title h1 {
+    font-size: clamp(28px, 8.5vw, 44px);
+  }
+
+  .lab__title p {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    margin-top: 7px;
+  }
+
+  /* Bigger touch targets on the colour row. */
+  .swatch {
+    width: 26px;
+    height: 26px;
+  }
+
+  /* Keep the section tabs — they are the whole navigation now — but drop the
+     Chinese sub-labels and the tagline so three of them fit at 390px. */
+  .nav-tab__cn,
+  .nav-tab__sub,
+  .brand__tag {
+    display: none;
+  }
+
+  .nav-tab + .nav-tab {
+    margin-left: 18px;
+  }
+
+  .nav-tab {
+    padding: 4px 0 5px;
+  }
+
+  .nav-tab__en {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .site-head__row {
+    gap: 12px;
+  }
+
+  .brand__mark {
+    font-size: 15px;
+  }
+
+  /* Keep only the number, the name and the way out. */
+  .exp-bar .mono-sm {
+    display: none;
+  }
+
+  .exp-bar {
+    gap: 10px;
+    padding: 10px 0 9px;
+  }
+
+  .exp-bar__title {
+    font-size: 15px;
+  }
+
+  /* The experiment page owns the viewport on a phone: no page scrolling, and
+     the canvas takes whatever is left after the bar and the footer. */
+  .shell:has(.exp-page) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .lab {
+    min-height: 0;
+  }
+
+  .site-foot {
+    margin-top: 12px;
+    padding: 10px 0 12px;
+  }
+
+  /* Credit line and the flexible spacer both cost a row here. */
+  .site-foot .spacer,
+  .site-foot .mono-sm:last-child {
+    display: none;
+  }
+}
+
+/* Landscape phones: even less vertical room, so drop the tagline too. */
+@media (max-height: 520px) and (max-width: 900px) {
+  .lab__title p {
+    display: none;
+  }
+  .lab {
+    min-height: 82vh;
+  }
+}
+
+/* ---------- canvas lab (effect wall) ---------- */
+
+.lab-wall {
+  position: relative;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.effect-list {
+  border-right: 1px solid var(--line);
+  padding: 16px 14px 24px;
+  overflow-y: auto;
+}
+
+.effect-list h2 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.effect-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  margin-bottom: 2px;
+}
+
+.effect-item:hover {
+  border-color: var(--line-strong);
+}
+
+.effect-item[data-on="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.effect-item__name {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.effect-item__desc {
+  display: block;
+  font-size: 11px;
+  opacity: 0.62;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.effect-canvas {
+  position: relative;
+  overflow: hidden;
+  /* A faint drafting grid: it gives the empty half of the stage something to
+     sit on, and gives the effects a sense of the plane they act in. */
+  background-color: var(--paper-lift);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px, 32px 32px;
+}
+
+.effect-canvas > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.effect-prose {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(24px, 6vw, 84px);
+  gap: 16px;
+}
+
+.effect-prose__tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.effect-prose h3 {
+  margin: 0;
+  font-size: clamp(40px, 8.4vw, 104px);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.86;
+  text-transform: uppercase;
+}
+
+.effect-prose p {
+  margin: 0;
+  max-width: 34ch;
+  /* Larger than a normal paragraph on purpose: the ASCII lens reads stroke
+     width, and a thin 14px face collapses into '.' and ':' at any cell size
+     small enough to look like a real grid. */
+  font-size: clamp(17px, 1.35vw, 21px);
+  line-height: 1.62;
+  color: var(--ink-soft);
+}
+
+.effect-prose p + p {
+  margin-top: -4px;
+}
+
+/* Decrypt pins each glyph's box to its resting width. Without it a cipher
+   character wider than the letter it replaces re-flows the whole line and the
+   paragraph visibly jumps as it scrambles. */
+.effect-prose[data-pinned] [data-ch] {
+  text-align: center;
+}
+
+.effect-foot {
+  border-top: 1px solid var(--line);
+  padding: 10px 0 26px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  align-items: center;
+  color: var(--ink-faint);
+}
+
+.effect-foot .spacer {
+  flex: 1;
+}
+
+@media (max-width: 820px) {
+  .lab-wall {
+    grid-template-columns: 1fr;
+  }
+  .effect-list {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 12px var(--shell-pad);
+  }
+  .effect-list h2 {
+    display: none;
+  }
+  .effect-item {
+    min-width: 146px;
+    margin-bottom: 0;
+  }
+  .effect-item__desc {
+    display: none;
+  }
+}
+
+/* ---------- soft cat ---------- */
+
+.cat-stage {
+  cursor: crosshair;
+  /* A soft pool of light behind the cat so the silhouette has something to sit
+     against — the flat stage tone made the whole animal read as a sticker. */
+  background:
+    radial-gradient(ellipse 62% 58% at 50% 48%, #ffffff 0%, rgba(255, 255, 255, 0) 72%),
+    var(--paper-lift);
+}
+
+.cat-coats {
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(6px);
+}
+
+.cat-coats__sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 2px 3px;
+  flex: none;
+}
+
+.swatch--sm {
+  width: 22px;
+  height: 22px;
+}
+
+@media (max-width: 720px) {
+  .swatch--sm {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* ---------- intake (how the collection grows) ---------- */
+
+.intake {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(236px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.intake__step {
+  background: var(--paper);
+  padding: 24px 22px 26px;
+}
+
+.intake__step h3 {
+  margin: 12px 0 8px;
+  font-size: 19px;
+  font-weight: 750;
+  letter-spacing: -0.024em;
+}
+
+.intake__step p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--ink-soft);
+  max-width: 34ch;
+}
+
+/* ---------- effect layers (canvas lab) ---------- */
+
+.fx-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.effect-canvas > .effect-prose {
+  z-index: 2;
+}
+
+/* Asciify punches a hole in the real text under its lens, so the ASCII layer
+   replaces a word rather than doubling over it. */
+.effect-prose[data-masked="true"] {
+  mask-image: radial-gradient(
+    circle var(--fx-lens, 176px) at var(--fx-x, -9999px) var(--fx-y, -9999px),
+    transparent 0%,
+    transparent 72%,
+    #000 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle var(--fx-lens, 176px) at var(--fx-x, -9999px) var(--fx-y, -9999px),
+    transparent 0%,
+    transparent 72%,
+    #000 100%
+  );
+}
+
+.effect-prose h3,
+.effect-prose p {
+  transition: text-shadow 0.12s linear;
+}
+
+/* Glitch: chroma split lives on the real DOM, tears live on the canvas. */
+.effect-prose[data-glitch] h3,
+.effect-prose[data-glitch] p {
+  text-shadow:
+    3px 0 rgba(59, 130, 246, 0.85),
+    -3px 0 rgba(0, 214, 255, 0.7);
+}
+
+.effect-prose[data-glitch="2"] h3 {
+  animation: fx-jolt 0.18s steps(2) infinite;
+}
+
+.effect-prose[data-glitch="2"] p {
+  animation: fx-jolt 0.24s steps(2) infinite reverse;
+}
+
+.effect-prose[data-glitch="3"] h3 {
+  animation: fx-jolt-hard 0.1s steps(2) infinite;
+}
+
+.effect-prose[data-glitch="3"] p {
+  animation: fx-jolt 0.13s steps(2) infinite reverse;
+}
+
+@keyframes fx-jolt {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2px, 1px); }
+  50% { transform: translate(2px, -1px); }
+  75% { transform: translate(-1px, -1px); }
+  100% { transform: translate(1px, 1px); }
+}
+
+@keyframes fx-jolt-hard {
+  0% { transform: translate(-5px, 2px) skewX(-1.6deg); }
+  33% { transform: translate(4px, -2px) skewX(1.2deg); }
+  66% { transform: translate(-3px, -2px) skewX(0.8deg); }
+  100% { transform: translate(3px, 2px) skewX(-0.9deg); }
+}
+
+/* ---------- motion system, adapted to this site ----------
+   The motion system ships its own tokens; here we only re-point the ones that
+   must match the page, plus give buttons the site's type voice. No effect class
+   is redefined — the spec owns those. */
+
+.mo-btn {
+  --mo-accent: var(--accent);
+  --mo-accent-ink: #ffffff;
+  --mo-primary: var(--accent);
+  --mo-primary-soft: var(--accent-soft);
+  --mo-primary-wash: var(--accent-wash);
+  --mo-primary-ink: #ffffff;
+  --mo-ink: var(--ink);
+  --mo-line: var(--line-strong);
+  --mo-radius: 999px;
+
+  border-width: 1px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.mo-btn.mo-btn--sm {
+  min-height: 36px;
+  padding: 8px 13px;
+  font-size: 10px;
+}
+
+.mo-btn--ghost {
+  border-color: var(--line);
+  color: var(--ink-soft);
+}
+
+/* ---------- button wall ---------- */
+
+.btn-group + .btn-group {
+  margin-top: clamp(30px, 5vh, 52px);
+}
+
+.btn-group__head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0 0 12px;
+}
+
+.btn-group__head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.btn-group__head .rule {
+  flex: 1;
+}
+
+/* Says how this shelf is triggered. Deliberately NOT a pill — a bordered chip
+   reads as a filter you can click, and it isn't one. A dot plus quiet caps
+   reads as a label. */
+.btn-group__how {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.btn-group__how::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.btn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(268px, 100%), 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.btn-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Tall enough for a 148px stage plus two lines of blurb and the tag row.
+     The stage below is a fixed height, so this is only a floor — a card whose
+     copy runs long still grows rather than clipping. */
+  min-height: 320px;
+  padding: 18px 18px 16px;
+  background: var(--paper);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+  transition:
+    background 0.45s var(--ease-soft),
+    box-shadow 0.45s var(--ease-soft),
+    transform 0.45s var(--ease-soft);
+}
+
+.btn-card:hover {
+  background: var(--paper-lift);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 34px rgb(20 24 31 / 0.08);
+  z-index: 1;
+}
+
+/* Light that trails the pointer, same as the experiment cards. */
+.btn-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    320px circle at var(--mx, -500px) var(--my, -500px),
+    color-mix(in srgb, var(--accent) 12%, transparent),
+    transparent 64%
+  );
+  transition: opacity 0.45s var(--ease-soft);
+}
+
+.btn-card:hover::after {
+  opacity: 1;
+}
+
+.btn-card > *:not(.btn-card__stage) {
+  position: relative;
+  z-index: 1;
+}
+
+/* The only click target on the card.
+   It is a real strip of blank space reserved at the bottom (in flow, not an
+   overlay) — so it never covers the tags, and the text above stays selectable.
+   The gradient is what tells you it is pressable; it fades in on hover. */
+.btn-card__go {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  /* bleed to the card's edges so it reads as a footer band */
+  margin: 14px -18px -16px;
+  padding: 13px 18px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-faint);
+  transition: color 0.4s var(--ease-soft);
+}
+
+/* the gradient itself, so it can fade independently of the text */
+.btn-card__go::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--accent) 14%, transparent),
+    color-mix(in srgb, var(--accent) 4%, transparent) 58%,
+    transparent
+  );
+  opacity: 0;
+  transition: opacity 0.45s var(--ease-soft);
+  pointer-events: none;
+}
+
+.btn-card:hover .btn-card__go,
+.btn-card__go:focus-visible {
+  color: var(--accent);
+}
+
+.btn-card:hover .btn-card__go::before,
+.btn-card__go:focus-visible::before {
+  opacity: 1;
+}
+
+.btn-card__go-no {
+  position: relative;
+  letter-spacing: 0.14em;
+}
+
+.btn-card__go-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.btn-card__go-label span {
+  transition: transform 0.4s var(--ease-soft);
+}
+
+.btn-card__go:hover .btn-card__go-label span {
+  transform: translateX(3px);
+}
+
+/* The stage is deliberately tall and roomy: an effect that only happens on
+   press needs somewhere to happen. */
+/* The stage is the interaction area. Its height is FIXED so every card matches,
+   but the value is set to the LARGER end of the old range, not the smaller one.
+   Before this, the stage was `flex: 1` and absorbed whatever the blurb left
+   over: a one-line blurb gave its card a 137px stage while a two-line
+   neighbour got 118px. The first fix levelled them down to 128px — which
+   shrank the generous ones, the opposite of the intent. The page scrolls, so
+   there is no reason to be stingy: 148px keeps the roomiest stage and gives
+   the tag row below some air too. */
+.btn-card__stage {
+  position: relative;
+  flex: none;
+  height: 148px;
+  display: grid;
+  place-items: center;
+  margin: 4px 0 14px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    var(--paper-lift);
+  background-size: 22px 22px, 22px 22px, auto;
+}
+
+
+.btn-card__meta h4 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.btn-card__meta h4 span {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+
+.btn-card__meta p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  /* Reserve two lines so a one-line blurb doesn't make its card shorter than
+     its neighbours — the grid stretches rows, and uneven cards read as sloppy. */
+  min-height: 2.5em;
+}
+
+.btn-card__tokens {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tag--js {
+  color: var(--accent);
+  border-color: var(--accent);
+  opacity: 0.9;
+}
+
+/* ---------- demo buttons: bigger, slower, replayable ----------
+   On the wall each effect is the whole point, so they get more room and more
+   time than a button in a toolbar would: a 300ms sweep is invisible at a
+   glance, the same sweep over 480ms reads as an animation. */
+
+.btn-card__stage .mo-btn,
+.btn-detail__stage .mo-btn {
+  /* Sizing only. The duration tokens are deliberately NOT overridden here:
+     the card prints the token it uses ("base · 400ms"), so stretching the
+     durations for the demo made the label a lie. If a demo needs to read
+     slower, change the token in motion.tokens.css so the label follows. */
+  min-height: 48px;
+  padding: 13px 26px;
+  font-size: 11.5px;
+}
+
+/* Arrow Slide: the label is centred by symmetric padding, and the chevron
+   parks outside the right edge until hover. Nothing needs to reserve a strip
+   any more — the old 54px right padding was what pushed the text off-centre.
+   (Kept as a no-op override point in case a demo needs a wider stage.) */
+
+/* Click-to-replay for the effects that normally only answer to hover: the
+   card is a demo, and "press it" is what people try first. `is-live` mirrors
+   the :hover rule for ~700ms, then everything springs back. */
+.mo-fill-sweep.is-live {
+  color: var(--mo-accent-ink);
+  border-color: var(--mo-accent);
+}
+.mo-fill-sweep.is-live::before {
+  transform: scaleX(1);
+}
+.mo-border-draw.is-live {
+  color: var(--mo-accent);
+  border-color: var(--mo-accent);
+}
+.mo-liquid-fill.is-live {
+  color: var(--mo-accent-ink);
+  border-color: var(--mo-accent);
+}
+.mo-glow-pulse.is-live {
+  transform: scale(var(--mo-scale-lift));
+  box-shadow: var(--mo-glow);
+  border-color: var(--mo-accent);
+  color: var(--mo-accent);
+}
+.mo-glow-pulse.is-live::after {
+  animation: mo-glow-out var(--mo-dur-glacial) var(--mo-ease-standard) infinite;
+}
+.mo-arrow-slide.is-live > .mo-ico {
+  transform: translateX(0);
+  opacity: 1;
+}
+.mo-arrow-slide.is-live > .mo-label {
+  transform: translateX(calc(-1 * var(--mo-text-shift)));
+}
+.mo-elastic-stretch.is-live {
+  animation: mo-stretch var(--mo-dur-base) var(--mo-ease-spring);
+}
+.mo-split-reveal.is-live {
+  border-color: var(--mo-accent);
+  color: var(--mo-accent-ink);
+  background: var(--mo-accent);
+}
+/* The per-character rules live in motion.buttons.css (PART 9). The old
+   `.mo-split__half--l/--r` selectors were removed with the clip-path rewrite —
+   those elements no longer exist. */
+
+/* ---------- one button, up close ---------- */
+
+.btn-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: clamp(20px, 4vw, 56px);
+  padding: clamp(24px, 5vh, 56px) 0 clamp(20px, 4vh, 40px);
+  align-items: start;
+  animation: swap-in-right 0.42s var(--ease-out-soft) both;
+}
+
+/* Carousel direction: hopping "next" enters from the right, "prev" from the
+   left. Kept short (0.42s) and front-loaded on purpose — the first version
+   spent its first 14% barely moving and then travelled the whole distance at
+   once, which read as a stutter rather than a glide. A quick, clean arrival
+   is the calm one here. */
+.btn-detail[data-dir='next'] {
+  animation-name: swap-in-right;
+}
+.btn-detail[data-dir='prev'] {
+  animation-name: swap-in-left;
+}
+
+@keyframes swap-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes swap-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.btn-detail__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: clamp(240px, 40vh, 380px);
+  border: 1px solid var(--line-strong);
+  background:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    var(--paper-lift);
+  background-size: 32px 32px, 32px 32px, auto;
+}
+
+.btn-detail__hint {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  color: var(--ink-faint);
+}
+
+.btn-detail__side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.btn-detail__title {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 60px);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.btn-detail__title span {
+  display: block;
+  font-size: clamp(13px, 1.4vw, 16px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--ink-faint);
+  margin-top: 10px;
+}
+
+.btn-detail__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.btn-detail__facts dt {
+  margin-bottom: 4px;
+}
+
+.btn-detail__facts dd {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.btn-detail__tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.btn-detail__code {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-lift);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.btn-detail__nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  margin-bottom: clamp(24px, 4vh, 48px);
+}
+
+.btn-detail__step {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 18px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transition: background 0.3s var(--ease-soft);
+}
+
+.btn-detail__step:hover {
+  background: var(--paper-lift);
+}
+
+.btn-detail__step b {
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.btn-detail__step--next {
+  align-items: flex-end;
+  text-align: right;
+}
+
+@media (max-width: 860px) {
+  .btn-detail {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- growth stats ---------- */
+
+.grow-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  margin-top: clamp(24px, 4vh, 44px);
+}
+
+.grow-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 22px 20px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.grow-stat__n {
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.grow-note {
+  margin: clamp(22px, 3.4vh, 36px) 0 0;
+  max-width: 62ch;
+  font-size: 14.5px;
+  line-height: 1.68;
+  color: var(--ink-soft);
+}
+
+/* ---------- dev log ---------- */
+
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.log-entry {
+  display: grid;
+  grid-template-columns: minmax(120px, 168px) minmax(0, 1fr);
+  gap: clamp(14px, 3vw, 40px);
+  padding: 22px 2px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.log-entry[data-latest='true'] {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 62%);
+}
+
+.log-entry__side {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-start;
+}
+
+.log-entry__ver {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.log-entry[data-latest='true'] .log-entry__ver {
+  color: var(--accent);
+}
+
+.log-entry__now {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  letter-spacing: 0.14em;
+}
+
+.log-entry__body h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.022em;
+}
+
+.log-entry__body ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.log-entry__body li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.log-entry__body li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 5px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+@media (max-width: 620px) {
+  .log-entry {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.site-foot__log {
+  color: var(--accent);
+  transition: opacity 0.25s var(--ease-soft);
+}
+
+.site-foot__log:hover {
+  opacity: 0.7;
+}
+
+/* ---------- not-open-yet page ---------- */
+
+.wip {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: clamp(32px, 7vh, 88px) 0;
+}
+
+.wip__inner {
+  width: 100%;
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.wip__mark {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px dashed var(--line-strong);
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+}
+
+.wip__blink {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: wip-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes wip-breathe {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.wip__kicker {
+  margin: 0;
+  color: var(--accent);
+  letter-spacing: 0.18em;
+}
+
+.wip__title {
+  margin: 0;
+  font-size: clamp(46px, 11vw, 112px);
+}
+
+.wip__sub {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.wip__lede {
+  margin: 10px 0 0;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.wip__note {
+  margin: 0;
+  max-width: 46ch;
+  padding-left: 14px;
+  border-left: 2px solid var(--line-strong);
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.wip__todo {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wip__todo li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.wip__todo li::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 1px;
+  background: var(--line-strong);
+  translate: 0 -3px;
+}
+
+.wip__actions {
+  margin-top: 14px;
+}
+
+/* On a phone the experiment shell is locked to the viewport so a canvas page
+   never scrolls. This page has no canvas and does have copy, so let it. */
+@media (max-width: 720px) {
+  .shell:has(.exp-page--wip) {
+    height: auto;
+    overflow: visible;
+  }
+
+  .wip {
+    place-items: start stretch;
+    padding: 26px 0 40px;
+  }
+}
+
+/* ---------- projects vs meta columns ----------
+   Numbering is a claim about what something is. A meta column is not a piece
+   of work, so it gets a dash instead of a number and stays a shade quieter
+   than the projects it sits next to. */
+
+.tab-card[data-kind='meta'] .tab-card__no {
+  color: var(--ink-faint);
+}
+
+.tab-card[data-kind='meta'] .tab-card__name {
+  font-size: clamp(17px, 1.9vw, 22px);
+}
+
+.tab-card[data-kind='meta'] .tab-card__lede {
+  color: var(--ink-faint);
+}
+
+.tabpanel-head__no[data-kind='meta'] {
+  color: var(--ink-faint);
+}
+
+/* ---------- language switch ----------
+   A setting, not a destination: the smallest thing in the bar, and the only
+   one that shows its own state as an underline. */
+
+.lang-switch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* No left margin any more: the theme switch now sits between the nav and
+     this one, so the gap before the settings cluster belongs to the theme
+     group. The pair reads as one block. */
+  margin-left: 10px;
+  flex: 0 0 auto;
+}
+
+.lang-switch__opt {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 3px 4px;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.25s var(--ease-soft),
+    border-color 0.25s var(--ease-soft);
+}
+
+.lang-switch__opt:hover {
+  color: var(--ink);
+}
+
+.lang-switch__opt[data-on='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.lang-switch__sep {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--line-strong);
+}
+
+/* ---------- destroy panel (project 03) ---------- */
+
+/* The landing strip: the one button on the left, the credit tucked into the
+   right corner. A hairline above it keeps the pair from looking pasted onto
+   the grid above. */
+.destroy-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-top: clamp(24px, 3.6vh, 40px);
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.destroy-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 20px;
+}
+
+/* The one real button, wearing the dashed capsule that used to sit in the
+   footer: a leading dot and a hairline border read as "poke me", where a solid
+   ink fill would read as "this is the point of the page" — it is not, it is a
+   detour. */
+.destroy-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
+  transition:
+    color 0.3s var(--ease-soft),
+    background 0.3s var(--ease-soft),
+    border-color 0.3s var(--ease-soft);
+}
+
+.destroy-go::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+  transition: opacity 0.3s var(--ease-soft);
+}
+
+.destroy-go:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.destroy-go:hover::before {
+  opacity: 1;
+}
+
+/* The quiet second door — plain text, not a capsule. A second pill next to the
+   real button reads as "two buttons, and they are different sizes". */
+.destroy-alt {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.3s var(--ease-soft),
+    border-color 0.3s var(--ease-soft);
+}
+
+.destroy-alt:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ---------- nav on narrow screens ----------
+   Five labels do not fit in full at 390px, so below 560px the nav falls back
+   to the sort of codes an instrument panel would use. The words are still
+   there for screen readers via the card aria-labels. */
+
+.nav-tab__short {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+@media (max-width: 560px) {
+  .nav-tab__en {
+    display: none;
+  }
+
+  .nav-tab__short {
+    display: inline;
+  }
+
+  .nav-tab + .nav-tab {
+    margin-left: 12px;
+  }
+
+  .lang-switch {
+    margin-left: 8px;
+    gap: 2px;
+  }
+
+  .lang-switch__opt {
+    padding: 3px 2px;
+  }
+}
+
+@media (max-width: 720px) {
+  .destroy-go {
+    padding: 10px 16px;
+    font-size: 10.5px;
+  }
+}
+
+/* ---------- misc ---------- */
+
+/* Honour "reduce motion" for the things that actually move a lot — but keep
+   colour/opacity feedback, and do NOT collapse the duration ladder to 0.001ms.
+   Windows with "show animations" switched off reports reduce, and collapsing
+   everything makes the whole site look broken rather than calm. The motion
+   tokens already zero out the travel distances themselves. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ==========================================================================
+   落日云间列车 — 云间列车实验
+   全屏 canvas + 一块悬浮的玻璃面板。面板不用 .panel：那个类名是软体实验室
+   参数面板的保留名（它读作 side panel），这里是 overlay panel。
+   ========================================================================== */
+
+.lab--train {
+  background: #0a0f1c;
+}
+
+/* The stage is a plain container here — nothing to grab, and `grab` would
+   imply a drag that does not exist. */
+.lab__stage--flat {
+  cursor: default;
+  overflow: hidden;
+  background: #0a0f1c;
+}
+
+.lab__stage--flat:active {
+  cursor: default;
+}
+
+.ct-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The title sits on the picture, so it has to be light ink, not the site's
+   dark ink. `--ink` is a fixed value everywhere else; overriding it locally
+   means the panel below still gets dark text without a second rule. */
+.lab--train .lab__title {
+  color: #fff;
+  text-shadow: 0 1px 22px rgb(6 10 22 / 0.5);
+}
+
+.lab--train .lab__title h1 i {
+  color: #ffd9a0;
+}
+
+.lab--train .lab__title p {
+  color: rgb(255 255 255 / 0.66);
+}
+
+.ct-error {
+  position: absolute;
+  inset: auto 0 0;
+  margin: 0;
+  padding: 14px 18px;
+  background: rgb(10 15 28 / 0.9);
+  color: #ffb4a8;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+/* ---------- the glass panel ---------- */
+
+/* Frosted slab. Four ingredients do the work:
+     1. backdrop-filter blur + saturate — the picture genuinely shows through
+        and gets blurred, which is the whole trick;
+     2. a hairline border of near-white — light catching the bevel;
+     3. an *inset* top highlight — the bevel's inner face, and the single
+        thing that most makes a panel look solid-but-see-through;
+     4. a wide, very soft drop shadow — glass hovers, so its shadow is a bloom
+        with no hard edge.
+   The fill is **dark**, not white. This looks backwards — "glass" suggests a
+   white wash — but the picture underneath is a bright sunset: measured at
+   mean luminance ~174 out of 255. A white fill at any usable opacity lifts
+   that further and white text on top measures 2.1:1, well under the 4.5:1
+   needed to read. A dark fill drops the panel's own background to ~60, which
+   puts white text at ~9:1 and leaves plenty of room for the blur to do
+   something visible. */
+.ct-panel {
+  position: absolute;
+  /* Above the stage canvas (z-index 0) and the HUD (3). The dock is 4 and
+     is a *different* stacking context — see the note in the phone drawer
+     block for why the drawer cannot simply out-z-index it. */
+  z-index: 7;
+  top: clamp(14px, 3vh, 34px);
+  right: clamp(14px, 2vw, 32px);
+  width: 274px;
+  /* `100%` here resolves against `.lab`, whose height comes from a flex chain
+     — not the viewport. On a 900px-tall window the panel overflowed the
+     bottom by 8px because only the lab was subtracted from. The vh term
+     bounds it against the actual screen as well. */
+  max-height: min(calc(100vh - 100px), calc(100% - 76px));
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  background: rgb(9 13 24 / 0.56);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 0 rgb(255 255 255 / 0.4),
+    inset 0 -1px 0 0 rgb(255 255 255 / 0.08),
+    0 22px 48px -12px rgb(4 8 18 / 0.55),
+    0 4px 14px -4px rgb(4 8 18 / 0.34);
+  color: #fff;
+  pointer-events: auto;
+  transition:
+    translate 0.5s var(--ease-soft),
+    opacity 0.34s var(--ease-soft),
+    scale 0.5s var(--ease-soft);
+  scale: 1;
+}
+
+.ct-panel[data-open='false'] {
+  translate: calc(100% + 48px) 0;
+  opacity: 0;
+  pointer-events: none;
+  /* Folding away gets a touch smaller too — a panel that only slides reads as
+     a sheet moving; shrinking a little reads as it being put away. */
+  scale: 0.94;
+}
+
+/* A tablet in portrait has plenty of height and a side panel already sits
+   beside the picture, so the panel has no reason to grow down the screen.
+   Capping it keeps the composition stable across the whole range of screen
+   heights instead of the panel being a percentage of whatever is available —
+   at 820x1180 the uncapped panel measured 78.7% of the viewport. */
+@media (min-width: 721px) {
+  .ct-panel {
+    max-height: min(calc(100dvh - 100px), calc(100% - 76px), 72cqh);
+  }
+}
+
+/* While the opening reveal plays, the panel stays off the picture. The reveal
+   is the art; a panel sliding in on top of it ruins the first impression.
+   `visibility` as well as opacity: the panel is still in the layout while it
+   is parked, and on a keyboard tab-through it would otherwise be the first
+   stop. */
+.ct-panel[data-revealed='false'] {
+  translate: calc(100% + 24px) 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The grab handle only exists in the portrait-phone drawer. On desktop the
+   panel is already a panel, and a handle bar across the top of a floating
+   slab would read as a stray element with nothing to do. */
+.ct-panel__grip {
+  display: none;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  flex: none;
+}
+
+.ct-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.14);
+  flex: none;
+}
+
+.ct-panel__title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Reads as a status chip, not a button: no pointer events, and its own
+   background is a hair lighter than the glass so it looks inset. */
+.ct-panel__badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.9);
+  background: rgb(255 255 255 / 0.14);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 999px;
+  padding: 3px 8px;
+  pointer-events: none;
+}
+
+.ct-panel__close {
+  margin-left: auto;
+  font-size: 17px;
+  line-height: 1;
+  padding: 2px 5px;
+  color: rgb(255 255 255 / 0.75);
+  transition: color 0.2s;
+}
+
+.ct-panel__close:hover {
+  color: #fff;
+}
+
+.ct-panel__body {
+  padding: 13px 14px 15px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.3) transparent;
+}
+
+.ct-panel__body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.ct-panel__body::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.22);
+  border-radius: 99px;
+}
+
+/* The panel re-uses the site's `.field` / `.field__label` structure but has
+   to restate them: the originals resolve to dark ink on light paper, which is
+   unreadable on glass. Only the colour tokens are overridden — spacing and
+   type stay shared so the two panels still feel like one site. */
+.ct-panel .field {
+  margin-bottom: 11px;
+}
+
+.ct-panel .field__label {
+  color: rgb(255 255 255 / 0.88);
+  font-size: 10.5px;
+  margin-bottom: 5px;
+}
+
+.ct-panel .field__label output {
+  color: #fff;
+  font-size: 10px;
+}
+
+.ct-panel .field__note {
+  color: rgb(255 255 255 / 0.72);
+  margin: 2px 0 10px;
+}
+
+.ct-panel input[type='range']::-webkit-slider-runnable-track {
+  background: rgb(255 255 255 / 0.3);
+}
+
+.ct-panel input[type='range']::-webkit-slider-thumb {
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(4 8 18 / 0.4);
+}
+
+.ct-panel input[type='range']::-webkit-slider-thumb:hover {
+  background: #ffd9a0;
+}
+
+.ct-panel input[type='range']::-moz-range-track {
+  background: rgb(255 255 255 / 0.3);
+}
+
+.ct-panel input[type='range']::-moz-range-thumb {
+  background: #fff;
+}
+
+/* Fill the track up to the thumb: the range's own accent colour would be the
+   site's blue, which on this warm picture looks like a mistake. */
+.ct-panel input[type='range'] {
+  background: linear-gradient(
+    to right,
+    #ffd9a0 0,
+    #ffd9a0 var(--fill, 50%),
+    rgb(255 255 255 / 0.26) var(--fill, 50%),
+    rgb(255 255 255 / 0.26) 100%
+  );
+  background-size: 100% 2px;
+  background-position: 0 center;
+  background-repeat: no-repeat;
+  border-radius: 2px;
+}
+
+.ct-panel input[type='range']::-webkit-slider-runnable-track {
+  background: transparent;
+}
+
+.ct-panel input[type='range']::-moz-range-track {
+  background: transparent;
+}
+
+/* ---------- palette row ---------- */
+
+.ct-palettes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ct-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 10px;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgb(255 255 255 / 0.08);
+  transition:
+    border-color 0.28s var(--ease-soft),
+    background 0.28s var(--ease-soft),
+    translate 0.34s var(--ease-soft);
+}
+
+.ct-palette:hover {
+  background: rgb(255 255 255 / 0.14);
+  border-color: rgb(255 255 255 / 0.3);
+  translate: 0 -1px;
+}
+
+.ct-palette[data-on='true'] {
+  border-color: rgb(255 217 160 / 0.9);
+  background: rgb(255 255 255 / 0.16);
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.24);
+}
+
+/* The bar is the swatch. A round dot could not carry three colours. */
+.ct-palette__bar {
+  display: block;
+  height: 20px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+
+.ct-palette__name {
+  font-size: 10px;
+  color: rgb(255 255 255 / 0.9);
+  text-align: left;
+  padding-left: 1px;
+}
+
+.ct-palette[data-on='true'] .ct-palette__name {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---------- tint rows ---------- */
+
+.ct-tints {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.ct-tint {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 4px;
+  border-radius: 9px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.22s;
+}
+
+.ct-tint:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+.ct-tint__chip {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  flex: none;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.28),
+    0 1px 3px rgb(4 8 18 / 0.4);
+}
+
+.ct-tint__meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.ct-tint__meta b {
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.ct-tint__meta i {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The native colour input is kept in the layout (not `display:none`) so the
+   whole row stays clickable in every browser; it just has no chrome of its
+   own. */
+.ct-tint input[type='color'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- groups ---------- */
+
+.ct-group {
+  margin-top: 14px;
+  padding-top: 11px;
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+}
+
+.ct-group:first-of-type {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.ct-group__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.68);
+}
+
+.ct-group__head .rule {
+  flex: 1;
+  background: rgb(255 255 255 / 0.12);
+}
+
+/* Plain text, not a button: it only ever revealed three more sliders, and a
+   pill would promise more than that. */
+.ct-more {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  padding: 6px 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  color: rgb(255 255 255 / 0.72);
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+  transition: color 0.22s;
+}
+
+.ct-more:hover {
+  color: #ffd9a0;
+}
+
+.ct-panel .panel__actions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+}
+
+/* The motion system's buttons assume a light page. On glass they need their
+   own surface, and their default border is nearly invisible against a
+   picture. */
+.ct-panel .mo-btn {
+  border-color: rgb(255 255 255 / 0.28);
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+}
+
+.ct-panel .mo-btn:hover {
+  background: rgb(255 255 255 / 0.2);
+  border-color: rgb(255 255 255 / 0.44);
+}
+
+.ct-panel .mo-btn.mo-fill-sweep,
+.ct-panel .mo-btn[data-on='true'] {
+  --mo-accent: #ffd9a0;
+  --mo-accent-ink: #2a1c0c;
+  --mo-primary: #ffd9a0;
+  --mo-primary-ink: #2a1c0c;
+  color: #2a1c0c;
+  border-color: #ffd9a0;
+  background: #ffd9a0;
+}
+
+/* The corner toggle sits on the picture too, so it gets the glass treatment
+   at rest and only becomes solid on hover. */
+.panel-toggle--glass {
+  background: rgb(9 13 24 / 0.5);
+  border-color: rgb(255 255 255 / 0.28);
+  color: #fff;
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.24);
+}
+
+.panel-toggle--glass:hover {
+  background: rgb(9 13 24 / 0.72);
+  border-color: rgb(255 255 255 / 0.46);
+}
+
+/* ---------- phone: portrait ----------
+
+   Orientation, not width, is the axis. A 926x428 landscape phone is 926px
+   wide — it sailed straight through every `max-width: 720px` rule and picked
+   up a full-height sheet written for a 390px portrait screen. Measured there:
+   the panel shrank to 224px (its `100%` resolved against a 300px-tall stage)
+   while its content stayed 1075px, so 900px of sliders scrolled inside a box
+   you could not see out of. */
+
+/* ---------- 舞台与底部按钮条（布局骨架；手机形态在下方媒体查询里覆写） ---------- */
+
+.lab {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: min(70vh, 620px);
+}
+
+/* ---------- 底部按钮条 ---------- */
+
+/* `absolute` inside `.lab`, not `fixed` to the viewport. Two independently
+   positioned boxes cannot negotiate space, which is exactly how the buttons
+   ended up sitting on top of the footer. Now both live in the same flow. */
+.lab__dock {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(8px, 1.6svh, 18px);
+  translate: -50% 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* No gap: the button row and the export line are both inside this column and
+     each carries its own top margin, so a gap here would double the space and
+     push the export button up into the middle of the picture (measured: the
+     dock spanned y 350–530 on a 531px-tall stage). */
+  gap: 0;
+  pointer-events: none;
+  max-width: calc(100% - 20px);
+  /* The home indicator is ~34px tall on a notched phone. Without this the
+     bottom row of buttons sits under it and reads as clipped. */
+  padding-bottom: var(--sab);
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  /* ---- the drawer ---- */
+
+  .ct-panel {
+    /* Bottom drawer, not a full-height sheet. The whole point of the panel on
+       a phone is to *see the picture change as you drag* — at 906px on a
+       926px screen the old sheet covered the canvas completely (intersection
+       area measured at 100%), so there was nothing left to look at. */
+    position: fixed;
+    /* Above the dock (z-index 4): the dock's buttons sit at the bottom of the
+       stage and would otherwise be the hit target over the collapsed bar. */
+    z-index: 7;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: auto;
+    /* Collapsed to a handle bar; `.ct-panel[data-open='true']` opens it. */
+    height: var(--peek);
+    max-height: var(--drawer);
+    border-radius: 18px 18px 0 0;
+    /* No bottom radius when collapsed, no side inset when expanded — the
+       drawer should read as a surface of the screen, not a floating card. */
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.4),
+      0 -18px 44px -12px rgb(4 8 18 / 0.62);
+  }
+
+  .ct-panel[data-open='true'] {
+    height: var(--drawer);
+  }
+
+  /* A collapsed *drawer* is still there — it is 34px tall and you tap it to
+     open. So it must NOT inherit the desktop collapsed panel's
+     `opacity: 0 / pointer-events: none`, which is written for a panel that
+     leaves the screen entirely. Measured failure: with those inherited, the
+     handle was 34px tall, correctly positioned, and completely untappable
+     (`elementFromPoint` walked straight past it to the canvas). */
+  .ct-panel[data-open='false'] {
+    translate: 0;
+    scale: 1;
+    opacity: 1;
+    pointer-events: auto;
+    /* Clip the body when collapsed. Without this the content keeps its own
+       height (measured 1019px) and spills out under the screen — the reset
+       button landed at y=1940 on a 926px screen. `overflow:hidden` on the
+       drawer is the whole reason the collapsed bar is 34px and not "however
+       tall the settings happen to be". */
+    overflow: hidden;
+  }
+
+  .ct-panel[data-open='true'] {
+    opacity: 1;
+    pointer-events: auto;
+    overflow: hidden;
+  }
+
+  /* The grab handle. This is also the *only* way to open the panel on a
+     phone, which is why the old layout (top-anchored, close button hidden
+     under the sticky header) left no way in or out at all. */
+  .ct-panel__grip {
+    display: block;
+    /* The handle is the only way in and out on a phone, so it is a *button*
+       with a real target, not a decorative 4px bar. Measured: a 4px tall
+       strip is unclickable with a thumb, and it is what made the panel feel
+       stuck. The visible line lives on a pseudo-element; this box is the hit
+       area — the full width, and 26px tall (about the 44px minimum once the
+       two side paddings count). */
+    position: relative;
+    width: 100%;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    background: none;
+    flex: none;
+    cursor: grab;
+  }
+
+  .ct-panel__grip::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    width: 40px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.34);
+    transition: background 0.25s, width 0.3s var(--ease-soft);
+  }
+
+  .ct-panel__grip:active {
+    cursor: grabbing;
+  }
+
+  .ct-panel__grip:active::after {
+    background: #ffd9a0;
+    /* Presses the line a little wider — the tactile version of the ripple a
+       trigger button gets, for something that has no "on" state. */
+    width: 56px;
+  }
+
+  .ct-panel__head {
+    /* Sits directly under the handle; the padding is what makes the collapsed
+       bar exactly `--peek` tall so the handle is the whole tap target. */
+    padding: 2px 14px 6px;
+  }
+
+  .ct-panel__body {
+    padding: 10px 14px calc(20px + var(--sab));
+    /* Touch scrolling inside the drawer must not drag the page behind it. */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Three across: 390px minus the sheet's own padding leaves room, and one
+     column of eight palettes is an absurd amount of scrolling. */
+  .ct-palettes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ct-tint__chip {
+    width: 28px;
+    height: 28px;
+  }
+
+  .ct-tint__meta b {
+    font-size: 12px;
+  }
+
+  .lab__title--train h1 {
+    /* The picture is the subject; on a phone the title is the only thing
+       standing between it and the panel button. */
+    font-size: clamp(30px, 9vw, 46px);
+  }
+
+  /* The dock has to clear the drawer, and it has to do it *by moving*, not
+     by z-index. Measured failure: with the dock at `bottom: peek + 8` its
+     buttons still spanned y 834–911, and since the dock is
+     `position:absolute` inside `.lab` it forms a stacking context that beats
+     the drawer's z-index 7 no matter how high the drawer goes — the drawer
+     is a sibling that paints earlier. So the buttons were the hit target over
+     the collapsed bar and the handle could not be tapped at all.
+     The fix is geometric: park the dock above the drawer's tallest state. */
+  /* Collapsed drawer: the dock sits just above the 34px handle. Expanded: it
+     has to clear the drawer's *own* top edge, which is `--drawer` measured
+     from the bottom — but since the dock is inside `.lab` and the drawer is
+     `position: fixed`, `--drawer` is exactly the right number. It is 62svh,
+     so the buttons end up over the picture's middle third, which is the only
+     place they can be and still be reachable. The stage gives them a
+     translucent plate so they stay legible over the clouds. */
+  .lab__dock {
+    bottom: calc(var(--peek) + 8px);
+  }
+
+  .lab__dock[data-above-drawer='true'] {
+    bottom: calc(var(--drawer) + 10px);
+  }
+
+  /* A plate under the buttons when they are over the picture. Without it the
+     white labels sit directly on moving cloud and the contrast flips with
+     every frame. */
+  .lab__dock .lab__controls {
+    background: rgb(9 13 24 / 0.42);
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    border-radius: 999px;
+    padding: 5px;
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.16);
+  }
+}
+
+/* ---------- phone: landscape ----------
+
+   Short and wide. Vertical space is the scarce resource, so the panel goes
+   back to the side where it costs width instead of height: 300px out of 926
+   leaves 67% of the picture visible, whereas a bottom drawer at even 40%
+   would leave 129px of picture. Sideways drag on a slider is also far more
+   precise than sideways drag in a 49px-tall horizontal row. */
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .ct-panel {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    bottom: 8px;
+    left: auto;
+    width: min(300px, 42vw);
+    /* Percentage resolves against `.lab`, which is the correct box here. */
+    max-height: none;
+    height: auto;
+    border-radius: 16px;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.34),
+      0 18px 40px -12px rgb(4 8 18 / 0.6);
+  }
+
+  /* No handle in this orientation — the panel is already a panel. */
+  .ct-panel__grip {
+    display: none;
+  }
+
+  .ct-panel__head {
+    padding: 11px 13px 9px;
+  }
+
+  .ct-panel__body {
+    padding: 11px 13px calc(16px + var(--sab));
+  }
+
+  .ct-palettes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* `vw` is blind in landscape: the title measured 61px on a 428px-tall
+     screen — 14% of the height — because the clamp keyed off width. Height
+     is the axis that matters here. */
+  .lab__title h1 {
+    font-size: clamp(20px, 7cqh, 32px);
+  }
+
+  .lab__title p {
+    display: none;
+  }
+
+  /* A landscape phone has ~300px of height; four 36px buttons in two rows
+     eat a quarter of it. One row, smaller, and the labels lose their
+     letter-spacing to buy the width. */
+  .lab__dock {
+    gap: 5px;
+  }
+
+  .lab__controls {
+    flex-wrap: nowrap;
+    gap: 5px;
+  }
+
+  .lab__controls .mo-btn--sm {
+    min-height: 30px;
+    padding: 6px 9px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+}
+
+/* ==========================================================================
+   实验页 · 移动端布局骨架
+   ---------------------------------------------------------------------------
+   这一段是「不同手机都能排版正确」的落地实现，不是逐个机型的补丁。
+
+   之前的三处写法在真机上都是错的，各有各的原因：
+
+   1. `.lab__dock { position: fixed; bottom: 10px }` 与 `.site-foot` 各自
+      独立定位 → 按钮组压在页脚上。**实测重叠在全部 9 个视口都发生，连
+      1180×820 的桌面也一样**，所以媒体查询救不了：两个元素必须由同一个
+      布局上下文分配空间，不能各定位各的。
+   2. 面板在手机上用 `height: calc(100dvh - 20px)` = 永远满屏。428×926 上
+      面板 906px、画布底边 849px，交集面积 100% —— 不是「占大部分」，
+      是全遮，「边调边看」在竖屏手机上等于 0。
+   3. 断点只用 `width`：926×428 的横屏手机宽度 926 > 720，**穿过了
+      `max-width:720px` 的所有规则**，拿走了为 390px 竖屏写的满屏高度。
+      移动端崩在横屏，几乎都是因为 width 断点对横屏失明。
+
+   所以这里的轴是两条：`orientation` 决定形态（竖屏抽屉 / 横屏侧栏），
+   `height` 决定尺寸。`--chrome` 把「页头 + exp-bar + 安全区」的高度
+   收成一个变量，任何地方要算「还剩多少」都从它派生，不再各算各的。
+   ========================================================================== */
+
+:root {
+  /* env() 的 fallback 不可省：无刘海/无 home indicator 的设备上这些
+     变量会整体失效，用到它们的 calc() 直接变成非法值。 */
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sat: env(safe-area-inset-top, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  /* 舞台上方的固定占用。56px = .site-head__row，46px ≈ .exp-bar 实测高。
+     这两个值随文案长度变（exp-bar 里有中英切换会换行），所以给的是
+     偏大的下限，真正的兜底在下面 min() 里。 */
+  --head-h: 56px;
+  --bar-h: 47px;
+
+  /* 抽屉高度。svh 而非 dvh：dvh 会随 iOS 地址栏收放实时重算，用户拖着
+     滑杆时页面会跟着跳一下；svh 是「地址栏始终收起」的最小视口，稳定。
+     后半句 min() 是软键盘的安全网 —— 键盘弹出会把 dvh 压到 ~400px，
+     没有这半句抽屉会跟着缩成一条缝。 */
+  --drawer: min(62svh, calc(100dvh - var(--chrome) - 116px));
+  /* 收起态只露一条把手。28px 是一根手指能舒服按到的最小高度。 */
+  --peek: 34px;
+  --chrome: calc(var(--sat) + var(--head-h) + var(--bar-h) + var(--sab));
+
+  /* 底部按钮条的高度，抽屉要给它让位 */
+  --dock-h: 46px;
+}
+
+/* ---------- 舞台：把「上方占用」和「下方控件」都从布局里扣掉 ---------- */
+
+
+
+
+
+/* ==========================================================================
+   暗色模式
+   ---------------------------------------------------------------------------
+   用户手机浏览器默认夜间开着，于是整站是「浏览器的原生 UI 已经切暗、页面自己
+   还是纯浅色」—— 半深半浅，比全浅色或全深色都别扭。
+
+   三条要则，都是被具体东西逼出来的，不是审美偏好：
+
+   1. **--paper-lift 必须是半透明，不是深色不透明。** 它有 12 处使用者，
+      全部靠它把卡片从背景上抬起来。深色下给 `#171b26` 这种不透明色，
+      卡片会变成「比底色亮一块的补丁」；给半透明后，下方若透出 Hero 的场
+      或光球，卡片就有了真实的层次 —— 这是这个站「液态」的来源，浅色下
+      靠白色不透明 + backdrop-filter 达成，深色下靠透明。
+   2. **墨色 rgb(20 24 31 / …) 全部换成 rgb(0 0 0 / …)。** 那是浅底上的
+      「阴影色」，深底上等于不存在，卡片会浮不起来。阴影透明度也要加，
+      因为深色下的投影需要的对比度比浅色高得多。
+   3. **--accent 必须提亮。** 原来的 #3b82f6 在 #0b0e14 上只有 3.4:1，
+      小号等宽字直接读不出来。
+   ========================================================================== */
+
+:root[data-theme='dark'],
+:root[data-scheme='dark']:not([data-theme='light']) {
+  /* Dark theme — keyed on the attribute, not on `prefers-color-scheme`.
+     A media query can only follow the OS; a switch has to be able to argue
+     with it in both directions (a phone in night mode asking for light, a
+     desktop set to dark wanting the light palette back). The attribute lives
+     on <html>, so this one selector covers the whole site — which is what
+     makes the setting global without a single per-component rule. */
+
+  /* Blue-black rather than pure black: a pure-black page leaves nowhere for
+     the blurred glass to be a different value from, and the whole "liquid"
+     quality collapses into flat panels on black. */
+    /* Blue-black rather than pure black: a pure-black page leaves nowhere for
+       the blurred glass to be a different value from, and the whole "liquid"
+       quality collapses into flat panels on black. */
+    --paper: #0b0e14;
+    --paper-deep: #070910;
+    --paper-lift: rgb(23 28 40 / 0.72);
+    --ink: #e8ecf4;
+    --ink-soft: #a3adc0;
+    --ink-faint: #7d8899;
+    --line: rgb(255 255 255 / 0.1);
+    --line-strong: rgb(255 255 255 / 0.22);
+    --accent: #7aa9ff;
+    --accent-soft: #a3c4ff;
+    --accent-wash: #16233f;
+    --jelly-red: #ff5a6e;
+    --jelly-jade: #2fd99a;
+    --jelly-amber: #ffc94d;
+    --jelly-berry: #8b9bff;
+
+    /* The glass is over a WebGL sunset, not over a pale page, so its fill
+       stays dark. Only the edge and the top highlight get stronger, because
+       against a near-black page a 26% white hairline is much less visible
+       than it is against #f5f7fa. */
+    --glass-fill: rgb(10 14 24 / 0.72);
+    --glass-edge: rgb(255 255 255 / 0.2);
+    --glass-top: 0.5;
+
+    /* Orb: a lit lens instead of a white haze. 1.12x gain on a #0b0e14 page
+       is 13 -> 15, i.e. nothing; 1.5x plus a stronger white overlay makes the
+       sphere read as glass catching the page's light. The edge inverts from
+       "ink" to "black" because that is what reads on a dark surface. */
+    --orb-lens-gain: 1.5;
+    --orb-lens-hi: 0.24;
+    --orb-lens-hi-mid: 0.16;
+    --orb-lens-hi-low: 0.09;
+    --orb-edge-dark: 0.34;
+    --orb-edge-dark-2: 0.5;
+    --orb-shadow: 0.5;
+    --orb-shadow-2: 0.62;
+
+    /* Tells the browser to render its own widgets (scrollbars, the range
+       track, the colour picker) dark. Without this the native controls are
+       light on a dark page, which is the single most obvious tell. */
+    color-scheme: dark;
+
+  /* The hero field canvas paints the page background, so it gets its own
+     dark values; see HeroField.tsx. The card surfaces under it, though, need
+     to let it through — hence the translucency above rather than a solid. */
+  .site-head {
+    background: color-mix(in srgb, var(--paper) 64%, transparent);
+  }
+
+  /* Selection was #fff on accent; on the lighter dark accent that is still
+     readable, but the dark-mode accent is pale enough that ink reads better. */
+  ::selection {
+    background: var(--accent);
+    color: #0b0e14;
+  }
+
+  /* Shadows that were doing real work on the pale page. The card lift is the
+     one that fails hardest: at 0.07 opacity a black shadow on a #0b0e14 card
+     is invisible, and the card stops being a card. Two layers — a wider black
+     and an inset top highlight, which is the light the "liquid" needs. */
+  .ex-card:hover,
+  .nav-card:hover,
+  .tab-card:hover {
+    box-shadow:
+      0 16px 34px rgb(0 0 0 / 0.44),
+      inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+}
+
+/* ---------- 配色分组（预设区分组折叠） ---------- */
+
+/* A family header is a label *and* a control, so it has to read as clickable
+   without a button look: quiet text, a rule that fills the gap, and a
+   `+`/`−` that states the result rather than asking. */
+.ct-fam {
+  margin-bottom: 6px;
+}
+
+.ct-fam__head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 2px 5px;
+  text-align: left;
+  color: rgb(255 255 255 / 0.72);
+  transition: color 0.22s;
+}
+
+.ct-fam__head:hover {
+  color: #ffd9a0;
+}
+
+.ct-fam__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ct-fam__count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 0.42);
+}
+
+.ct-fam__head .rule {
+  flex: 1;
+  background: rgb(255 255 255 / 0.12);
+  transform: translateY(-2px);
+}
+
+.ct-fam__hint {
+  font-size: 9.5px;
+  color: rgb(255 255 255 / 0.4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 108px;
+}
+
+.ct-fam__caret {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.55);
+  width: 10px;
+  text-align: center;
+  flex: none;
+}
+
+.ct-fam[data-open='true'] .ct-fam__head {
+  color: #fff;
+}
+
+/* Inside an open family the swatches need a little more air from the header
+   than from the neighbouring family. */
+.ct-fam[data-open='true'] .ct-palettes {
+  margin: 2px 0 8px;
+  padding-left: 2px;
+}
+
+/* ---------- 面板底部：只放「回到起点」 ---------- */
+
+/* Replaces the old 复原 / 换束光 pair. The global reset moved to the dock
+   next to 重播, where it is one thumb from the picture; what stays here is
+   the *local* undo — back to the preset this set was derived from — and it
+   only exists once you have actually changed something. */
+.ct-panel__foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+  min-height: 8px;
+}
+
+.ct-revert {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: rgb(255 255 255 / 0.62);
+  padding: 4px 0;
+  transition: color 0.22s;
+}
+
+.ct-revert:hover {
+  color: #ffd9a0;
+}
+
+.ct-revert::before {
+  content: '← ';
+  opacity: 0.7;
+}
+
+/* ---------- dock 的主次 ---------- */
+
+/* Five controls do not fit a 390px row at equal weight, and they should not
+   have equal weight anyway. 换束光 is the reason to come; 暂停/存下 are
+   states; 重播/复原 are utilities. Giving the one primary the filled surface
+   buys back ~40px of width and states the hierarchy without a label. */
+.lab__controls .mo-btn--lead {
+  background: rgb(255 217 160 / 0.92);
+  border-color: rgb(255 217 160 / 0.92);
+  color: #2a1c0c;
+  font-weight: 600;
+}
+
+.lab__controls .mo-btn--lead:hover {
+  background: #ffd9a0;
+  border-color: #ffd9a0;
+}
+
+.lab__controls .mo-btn--lead:active {
+  background: #f0c48a;
+}
+
+/* Still a trigger, so the ring still fires — the filled surface must not make
+   it read as a held state. */
+.lab__controls .mo-btn--lead::after {
+  background: color-mix(in srgb, #2a1c0c 34%, transparent);
+}
+
+@media (max-width: 520px) {
+  /* At this width the utilities drop their borders and become text. Five
+     bordered pills is what pushed the group to two rows in the first
+     place; four quiet labels plus one filled primary is a single row. */
+  .lab__controls .mo-btn:not(.mo-btn--lead) {
+    border-color: transparent;
+    background: rgb(255 255 255 / 0.08);
+  }
+}
+
+/* ---------- 颜色编辑区 ---------- */
+
+.ct-group--tint {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid rgb(255 255 255 / 0.14);
+}
+
+/* Marks the block once a preset has been hand-edited, so it is obvious the
+   colours on screen no longer match the highlighted swatch. */
+.ct-group__badge {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: #ffd9a0;
+  background: rgb(255 217 160 / 0.14);
+  border: 1px solid rgb(255 217 160 / 0.4);
+  border-radius: 999px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.ct-tint-set + .ct-tint-set {
+  margin-top: 10px;
+}
+
+.ct-tint-set__label {
+  display: block;
+  font-size: 9.5px;
+  color: rgb(255 255 255 / 0.44);
+  margin-bottom: 5px;
+  letter-spacing: 0.02em;
+}
+
+
+/* An explicit light choice on a night-mode device. The tokens above are keyed
+   on `[data-scheme='dark']:not([data-theme='light'])`, so this attribute alone
+   is enough to opt out — nothing else has to be undone. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* ---------- theme switch ----------
+   A sibling of `.lang-switch`, not a variant of it. Three small glyph buttons
+   and no separator, so the two switches read as one control cluster: settings
+   first, navigation second. The active one takes ink and a dot; the others
+   stay faint. No hover fill — a switch is a state display, and filling it on
+   hover would suggest something happens rather than something is true. */
+.theme-switch {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: 22px;
+  flex: none;
+}
+
+.theme-switch__opt {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--ink-faint);
+  border-radius: 50%;
+  transition:
+    color 0.22s var(--ease-soft),
+    background-color 0.22s var(--ease-soft);
+}
+
+.theme-switch__opt svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.theme-switch__opt:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.theme-switch__opt[data-on='true'] {
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+
+@media (max-width: 720px) {
+  /* Three more controls do not fit beside six nav labels at 390px. The
+     language switch already sheds its own text here, so both shrink to
+     glyph scale; the nav keeps the room. */
+  .theme-switch {
+    margin-left: 12px;
+  }
+
+  .theme-switch__opt {
+    width: 20px;
+    height: 20px;
+  }
+
+  .theme-switch__opt svg {
+    width: 12px;
+    height: 12px;
+  }
+}
+
+/* ---------- 导出 ----------
+   Its own line, below the control bar, in text rather than a pill. The four
+   buttons above all change something on this screen; this one produces a
+   *file*. Putting it on their row would claim it is the same kind of act, and
+   the row is already four wide. A line of quiet type with a small glyph reads
+   as "something else" without needing a label to say so. */
+.ct-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* The only vertical separation between the two rows now. */
+  margin-top: 9px;
+  padding: 5px 10px 5px 8px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: rgb(255 255 255 / 0.6);
+  background: rgb(255 255 255 / 0.07);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 999px;
+  pointer-events: auto;
+  transition:
+    color 0.22s var(--ease-soft),
+    background-color 0.22s var(--ease-soft),
+    border-color 0.22s var(--ease-soft);
+}
+
+.ct-export:hover {
+  color: #ffd9a0;
+  background: rgb(255 255 255 / 0.13);
+  border-color: rgb(255 255 255 / 0.28);
+}
+
+.ct-export:active {
+  background: rgb(255 255 255 / 0.2);
+}
+
+.ct-export__icon {
+  display: grid;
+  place-items: center;
+}
+
+.ct-export__icon svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+/* The desktop dock centres its contents, so the export line centres with it.
+   On a phone the drawer sits below and the dock rides above it — the same
+   treatment as the button row is what keeps the pair reading as one block. */
+@media (max-width: 520px) {
+  .ct-export {
+    font-size: 9px;
+    padding: 4px 9px 4px 7px;
+  }
+}

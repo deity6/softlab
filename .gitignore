@@ -1,0 +1,56 @@
+# ---- 依赖与产物 ----
+node_modules
+dist
+dist-ssr
+.vite
+*.local
+.DS_Store
+Thumbs.db
+
+# ---- 日志 ----
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ====================================================================
+#  机密：绝不允许入库
+#  本仓库是纯静态前端，运行时不需要任何密钥。
+#  部署凭据（Cloudflare API token）正本在仓库外的
+#    <workspace>\.cf-tools\key.env
+#  .cf-tools/ 不在本目录内，下面两条是双保险。
+# ====================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*_rsa
+*_ed25519
+credentials.json
+secrets.json
+key.env
+.wrangler/
+
+# ---- 仓库外的部署工具与验收产物（双保险）----
+.cf-tools/
+.softlab-verify/
+
+# ---- 开发期一次性探针（正本归档在仓库外 .softlab-verify/archive/）----
+#  这些脚本硬编码了本机绝对路径（浏览器路径、playwright 安装位置），
+#  别人 clone 下来跑不了 —— 跑不了的东西不进仓库。
+/_*.mjs
+/_*.cjs
+/_*.bat
+dev*.log
+
+# ---- 内部工作文档：留在本地，不随开源发布 ----
+#  这批文档是过程记录，含内部措辞（"用户要求…"）与指向其他内部文档的引用，
+#  直接公开会产生悬空链接。README 是面向读者的唯一说明。
+#  docs/ 下只公开 screenshots/。
+/docs/*.md
