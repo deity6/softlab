@@ -1,0 +1,183 @@
+/* ============================================================================
+ * MOTION TOKENS — 按钮动效风格参考规范（Button Motion Design Reference）
+ * ----------------------------------------------------------------------------
+ * 全站唯一的动效参数来源。任何按钮动效都必须从这里的令牌取值，
+ * 禁止在业务代码里手写 cubic-bezier / 毫秒数字 / 十六进制色值。
+ *
+ * 规范来源：前端按钮动效风格参考 01-04（共 20 个效果）
+ * 版本：1.0.0
+ * ========================================================================== */
+
+:root {
+  /* --------------------------------------------------------------------------
+   * 1. DURATION — 时长阶梯
+   * 取值全部来自参考图的 duration 标注，不新增档位。
+   * ------------------------------------------------------------------------ */
+  --mo-dur-instant: 100ms; /* 按压反馈（非离散阶段效果）   */
+  --mo-dur-quick: 200ms;   /* Press Scale / 轻量反馈       */
+  --mo-dur-fast: 300ms;    /* 最常用：Fill / Magnetic / Arrow / Swap / Lift */
+  --mo-dur-base: 400ms;    /* Border Draw / Loading Morph / Icon Morph / Stretch */
+  --mo-dur-slow: 500ms;    /* Split Reveal / Success Morph / Blob */
+  --mo-dur-lazy: 600ms;    /* Progress / Particle / 通用中慢档 */
+  --mo-dur-glacial: 800ms; /* Glow Pulse / Border Draw      */
+  /* 以下两档是为"过程必须看得清"的效果新增的（2026-09-17 用户反馈：
+     「任何按钮都不追求快」——Ripple 要慢 1.5–2×、3D Flip 翻转与填充都要慢）。
+     仍然遵守「100 的倍数」约定。 */
+  --mo-dur-roll: 900ms;    /* 3D Flip：翻转与填充**共用**，两者必须同步 */
+  --mo-dur-tide: 1000ms;   /* Ripple：涟漪要有明显的扩散过程 */
+
+  /* HERO 光球（触摸端虚拟指针）的专属节奏。
+     它不属于按钮阶梯 —— 按钮是"点一下就发生"，球是"一直在那儿待着"，
+     所以呼吸是**秒级**的，比任何按钮动效都慢。放在这里只是为了守住
+     "全站动效参数只有一个来源"这条规矩。详见 docs/handoff-hero-orb.md §4.2。 */
+  --mo-orb-breathe: 1400ms;   /* 首次出现时那一次轻微呼吸（提示"它是活的"） */
+  --mo-orb-settle: 1200ms;    /* 惯性停下 → 淡回待机的时长（要平滑，不能突然变淡） */
+
+  /* --------------------------------------------------------------------------
+   * 2. EASING — 缓动曲线四件套
+   * 这四条覆盖全部 20 个效果，是"手感统一"的关键。
+   * ------------------------------------------------------------------------ */
+  --mo-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);   /* 标准：出场/位移/填充/涟漪 */
+  --mo-ease-decel: cubic-bezier(0.22, 1, 0.36, 1);    /* 减速：描边/揭示/有机形变 */
+  --mo-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);/* 回弹过冲：缩放/拉伸/图标变形 */
+  --mo-ease-elastic: cubic-bezier(0.2, 0.8, 0.2, 1);  /* 弹性：磁吸跟随 */
+  /* 描边绘制专用：慢起步 → 中段快 → 长尾收束（像加载条落位）。
+     匀速的 linear 会让首尾显得突兀，纯 decel 又会让开头显得迟疑。
+     实测 @800ms：起步 10% 用 114ms → 半程 220ms → 90% 用 460ms →
+     最后 10% 长度花掉 340ms（后半个圆弧占 580ms，明显慢）。 */
+  --mo-ease-draw: cubic-bezier(0.34, 0, 0.06, 1);
+
+  /* ⭐ 「尾段收束」/ 长尾缓动（tail settle）—— 2026-09-17 用户点名要的东西：
+     「最后的 90%~100% 那一段时长都会比较长，就像加载进度条一样」。
+     这就是加载条/圆环加载那种"先走完大部分、最后一点点慢慢爬到位"的曲线。
+     它的量化特征是 **尾部占比**：最后 10% 的**进度**消耗掉整条曲线多少**时间**。
+       linear          → 10%    （匀速，没有收束感）
+       standard        → 36.7%
+       ease-draw       → 42.6%（Border Draw 在用）
+       **settle（本条）→ 56.1%**  ← 最后 10% 进度花掉一半以上时间
+       expo-out        → 67.1%（过头了，尾段近乎停滞）
+     用途：**填充类**（3D Flip 的 fill）与**进度/加载类**（Progress、Loading）。
+     ⚠️ 不要拿它做位移/缩放：位移用长尾会读作"卡住了"，
+     只有"填充进度"这个语义下，尾部变慢才读作"快满了，正在落位"。 */
+  --mo-ease-settle: cubic-bezier(0.22, 0.61, 0.12, 1);
+
+  /* --------------------------------------------------------------------------
+   * 3. COLOR — 动效专用色（与品牌色解耦，改这里即可整体换色）
+   * ------------------------------------------------------------------------ */
+  --mo-primary: #3b82f6;      /* 主蓝：填充/描边/涟漪/光晕/液体 */
+  --mo-primary-soft: #60a5fa; /* 浅蓝：渐变尾色/次级 */
+  --mo-primary-wash: #dbeafe; /* 洗白蓝：hover 底色/高光轨道 */
+  --mo-primary-ink: #ffffff;  /* 蓝底上的文字色 */
+  --mo-success: #3bb26f;      /* 成功绿：Success Morph / Progress Complete */
+  --mo-ink: #14181f;          /* 默认描边/文字 */
+  --mo-line: #e3e6ec;         /* 分隔线/默认边框 */
+
+  /* --------------------------------------------------------------------------
+   * 4. GEOMETRY — 位移与形变基准
+   * ------------------------------------------------------------------------ */
+  --mo-radius: 8px;          /* 按钮圆角基准 */
+  --mo-stroke: 1.5px;        /* Border Draw 描边宽度 */
+  --mo-icon-travel: 16px;    /* Arrow Slide 箭头行程 */
+  --mo-text-shift: 8px;      /* Arrow Slide / Text Swap 文字位移 */
+  --mo-arrow-shift: 18px;    /* Arrow Slide 文字左移距离（给箭头让位） */
+  /* Magnetic：光标偏移 → 位移/旋转/放大的三档基准。
+     旧值 14px 配 0.35 强度，实际最大只挪 4.9px，几乎看不见 —— 用户说"要更夸张"。
+     现在 24px × 0.8 强度 ≈ 19px，另加 8° 旋转与 1.05 放大，手感是"被磁铁吸住"。 */
+  --mo-magnet-max: 24px;     /* Magnetic 最大偏移 */
+  --mo-magnet-rotate: 8deg;  /* Magnetic 最大旋转角（随水平偏移） */
+  --mo-magnet-scale: 1;      /* Magnetic 悬停放大（默认 1，hover 改 1.05） */
+  --mo-cursor-offset: 60px;  /* Cursor Spot 光斑随光标的最大偏移 */
+  --mo-wave-height: 6px;     /* Liquid Fill 波高 */
+  --mo-perspective: 800px;   /* 3D Flip 透视距离 */
+  --mo-particles: 24;        /* Particle Burst 粒子数（规范区间 20–30） */
+  --mo-split-shift: 34px;    /* Split Reveal 每个字符沿自身方向位移的距离 */
+  --mo-stretch-max: 0.16;    /* Elastic Stretch 单次冲击的最大横向拉伸比例 */
+
+  /* --------------------------------------------------------------------------
+   * 5. SCALE — 形变比例
+   * ------------------------------------------------------------------------ */
+  /* Press Scale：幅度按"更 Q 弹"再放一档（1.03/0.95/1.02 → 1.06/0.92/1.06）。
+     用户反复强调"不追求快"，所以回弹的**过程**也要看得见：
+     按下仍然即时（instant），但回弹从 200ms 拉到 400ms，过冲才读得出来。 */
+  --mo-scale-hover: 1.06;   /* Press Scale hover */
+  --mo-scale-press: 0.92;   /* Press Scale 按下 */
+  --mo-scale-release: 1.06; /* Press Scale 回弹 */
+  --mo-scale-lift: 1.02;    /* Shadow Lift / Glow Pulse */
+  --mo-scale-split: 0.95;   /* Split Reveal 起始 */
+  --mo-stretch-x: 1.12;     /* Elastic Stretch 横向拉伸（旧：连点叠加已废弃） */
+  --mo-stretch-y: 0.96;     /* Elastic Stretch 纵向挤压 */
+  /* Elastic Stretch 蓄力：按住时压缩/鼓起，松手（或蓄满）弹射。
+     三个量互相配合 —— 压得越狠，弹得越远，读起来才有"存了能量"的感觉。
+     数值按用户反馈调过一轮：蓄满时"要再夸张些"，所以压缩/鼓起/弹射都加码。 */
+  --mo-charge-squash: 0.20; /* 蓄满时横向压缩比例（0.14 → 0.20） */
+  --mo-charge-bulge: 0.14;  /* 蓄满时纵向鼓起比例（0.10 → 0.14） */
+  --mo-fire-amp: 0.34;      /* 蓄满释放时的横向弹射幅度（0.22 → 0.34） */
+  --mo-charge-time: 800ms;  /* 蓄满所需时间 */
+  /* Ripple：用户「太淡、太密、看不清楚」的三个原因都在这里 ——
+     ① 基准尺寸 `--mo-wave-size` 是"到最远角的距离 ×2"（即直径），而旧 max 给到 2.2，
+        意味着环要扩到按钮尺寸的 ~2.2 倍才结束 —— **可见寿命只有前 ~45% 的行程**，
+        后面全在按钮外被裁掉。所以"看起来一闪就没了"。
+        → max = 1.0：最终直径 = 2 × 最远角距离 ≥ 按钮对角线，**整段扩散都在按钮内可见**。
+     ② 环太细（3px）且起点透明度只有 0.9 → 在浅底上几乎看不见。
+        → 4.5px 起步、起点透明度 1，扩散中变细淡出（振幅衰减）。
+     ③ 3 圈 × 90ms 错峰太密 → 读成一团模糊。
+        → 3 圈 × 220ms：圈与圈之间留出足够间距，能看出是一道道波峰往外走。 */
+  --mo-ripple-max: 1.0;     /* Ripple 最大扩散倍率（1.0 = 椭圆刚好贴合按钮四边） */
+  --mo-ripple-stroke: 4.5px;/* Ripple 波峰起步粗细（扩散中递减到 1px） */
+  --mo-ripple-rings: 3;     /* Ripple 同心波圈数 */
+  --mo-ripple-gap: 220ms;   /* Ripple 相邻两圈的出发间隔（要能看清是一圈一圈） */
+
+  /* --------------------------------------------------------------------------
+   * 6. ELEVATION — 抬升阴影阶梯
+   * ------------------------------------------------------------------------ */
+  --mo-shadow-rest: 0 2px 6px rgb(20 24 31 / 0.08);
+  --mo-shadow-hover: 0 6px 16px rgb(20 24 31 / 0.12);
+  --mo-shadow-max: 0 12px 24px rgb(20 24 31 / 0.18);
+  --mo-shadow-press: 0 1px 2px rgb(20 24 31 / 0.10);
+  --mo-glow: 0 0 24px rgb(59 130 246 / 0.45);
+  --mo-focus-ring: 0 0 0 3px rgb(59 130 246 / 0.30);
+}
+
+/* ============================================================================
+ * 无障碍：全局动效降级闸门
+ * 开启系统"减少动态效果"时，所有 mo-* 效果退化为瞬时的颜色/透明度变化，
+ * 保留可感知的反馈但不产生位移。
+ * ========================================================================== */
+/* Reduced motion: shorten the ladder, do NOT zero it.
+   Windows with "show animations" off reports reduce; zeroing every duration makes
+   the site look broken instead of calm. Travel distances are neutralised below,
+   which is where the comfort actually comes from. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mo-magnet-max: 0px;
+    --mo-icon-travel: 0px;
+    --mo-text-shift: 0px;
+    --mo-cursor-offset: 0px;
+    /* 呼吸只是"提示它是活的"，缩短即可，不该整个消失 */
+    --mo-orb-breathe: 400ms;
+  }
+
+  .mo-particle-host::before,
+  .mo-particle-host::after {
+    display: none !important;
+  }
+}
+
+/* ============================================================================
+ * 深色主题
+ * ----------------------------------------------------------------------------
+ * 故意【不】跟随 prefers-color-scheme。
+ * 原因：页面主题与系统偏好经常不一致（浅色应用跑在深色系统上），
+ * 若此处跟随系统，会出现「按钮文字变白铺在白底上」的隐形事故。
+ * 由业务侧显式挂载 .mo-theme-dark 或 [data-mo-theme="dark"] 切换。
+ * ========================================================================== */
+.mo-theme-dark,
+[data-mo-theme="dark"] {
+  --mo-primary-wash: #1e3a8a;
+  --mo-ink: #e8ebf0;
+  --mo-line: #333b46;
+  --mo-shadow-rest: 0 2px 6px rgb(0 0 0 / 0.4);
+  --mo-shadow-hover: 0 6px 16px rgb(0 0 0 / 0.5);
+  --mo-shadow-max: 0 12px 24px rgb(0 0 0 / 0.6);
+  --mo-shadow-press: 0 1px 2px rgb(0 0 0 / 0.5);
+}

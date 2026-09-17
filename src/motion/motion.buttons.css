@@ -1,0 +1,1737 @@
+/* ============================================================================
+ * MOTION BUTTONS — 按钮动效实现层
+ * ----------------------------------------------------------------------------
+ * 依赖：motion.tokens.css（必须先引入）
+ * 用法：<button class="mo-btn mo-fill-sweep">Explore</button>
+ *      或 <button class="mo-btn" data-mo="fill-sweep">Explore</button>（需 js）
+ *
+ * 目录：
+ *   PART 0  基类 .mo-btn 与状态契约
+ *   PART 1  Fill Sweep        颜色扫入      (01-01)
+ *   PART 2  Border Draw       描边绘制      (01-02)
+ *   PART 3  Magnetic Hover    磁吸跟随      (01-03)  *JS
+ *   PART 4  Press Scale       按压缩放      (01-04)
+ *   PART 5  Arrow Slide       箭头滑入      (01-05)
+ *   PART 6  Ripple Click      涟漪点击      (02-01)  *JS
+ *   PART 7  Glow Pulse        光晕脉冲      (02-02)
+ *   PART 8  Liquid Fill       液体填充      (02-03)
+ *   PART 9  Split Reveal      分裂展开      (02-04)  *JS
+ *   PART 10 Shadow Lift       悬浮抬升      (02-05)
+ *   PART 11 Loading Morph     加载形变      (03-01)  *JS
+ *   PART 12 Success Morph     成功状态      (03-02)  *JS
+ *   PART 13 Progress Button   进度按钮      (03-03)  *JS
+ *   PART 14 Icon Morph        图标变形      (03-04)
+ *   PART 15 Text Swap         文案切换      (03-05)  *JS
+ *   PART 16 Elastic Stretch   弹性拉伸      (04-01)
+ *   PART 17 Blob Morph        有机形变      (04-02)
+ *   PART 18 Particle Burst    粒子爆发      (04-03)  *JS
+ *   PART 19 3D Flip           3D 翻转       (04-04)  *JS
+ *   PART 20 Cursor Spot       光标互动      (04-05)  *JS
+ * ========================================================================== */
+
+
+/* ============================================================================
+ * PART 0 — 基类与状态契约
+ * ========================================================================== */
+
+.mo-btn {
+  /* 可覆写出口：单个按钮换色只需覆盖这三个变量 */
+  --mo-accent: var(--mo-primary);
+  --mo-accent-ink: var(--mo-primary-ink);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: 44px;                 /* WCAG 2.5.8 触控目标下限 */
+  padding: 11px 22px;
+
+  border: var(--mo-stroke) solid var(--mo-ink);
+  border-radius: var(--mo-radius);
+  background: transparent;
+  color: var(--mo-ink);
+
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+
+  cursor: pointer;
+  user-select: none;
+  isolation: isolate;               /* 锁住负 z-index 伪元素，防止逃逸到页面底层 */
+  -webkit-tap-highlight-color: transparent;
+
+  transition:
+    color var(--mo-dur-fast) var(--mo-ease-standard),
+    border-color var(--mo-dur-fast) var(--mo-ease-standard),
+    background-color var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+/* 焦点环：全效果统一，不允许被覆盖 */
+.mo-btn:focus-visible {
+  outline: 2px solid var(--mo-accent);
+  outline-offset: 2px;
+}
+
+/* 禁用态：全效果统一 */
+.mo-btn:disabled,
+.mo-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* 尺寸修饰符 */
+.mo-btn--sm { min-height: 36px; padding: 8px 16px; font-size: 13px; }
+.mo-btn--lg { min-height: 52px; padding: 14px 30px; font-size: 16px; }
+
+/* 强调修饰符：实心蓝底（供 Fill / Flip / Morph 类效果作为终态使用） */
+.mo-btn--solid {
+  background: var(--mo-accent);
+  border-color: var(--mo-accent);
+  color: var(--mo-accent-ink);
+}
+
+/* 图标槽：所有带动画图标的按钮共用 */
+.mo-ico { width: 16px; height: 16px; flex: none; }
+.mo-ico svg { display: block; width: 100%; height: 100%; }
+
+
+/* ============================================================================
+ * PART 1 — Fill Sweep 颜色扫入            [01-01]
+ * 300ms / ease-standard / left → right / fill 0% → 100%
+ * ========================================================================== */
+
+.mo-fill-sweep { overflow: hidden; }
+
+.mo-fill-sweep::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--mo-accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+.mo-fill-sweep:hover,
+.mo-fill-sweep:focus-visible {
+  color: var(--mo-accent-ink);
+  border-color: var(--mo-accent);
+}
+.mo-fill-sweep:hover::before,
+.mo-fill-sweep:focus-visible::before { transform: scaleX(1); }
+
+/* 方向反转：右 → 左 */
+.mo-fill-sweep--reverse::before { transform-origin: right center; }
+/* 方向反转：上 → 下 */
+.mo-fill-sweep--down::before { transform: scaleY(0); transform-origin: center top; }
+.mo-fill-sweep--down:hover::before,
+.mo-fill-sweep--down:focus-visible::before { transform: scaleY(1); }
+
+
+/* ============================================================================
+ * PART 2 — Border Draw 描边绘制           [01-02]
+ * slow · 500ms / ease-draw / stroke 1.5px / clockwise（顺时针一笔画完）
+ *
+ * 结构：SVG <rect>，viewBox 由 JS 量出按钮真实像素尺寸（见 MotionButton.tsx
+ * 的 BorderRing），所以 1 用户单位 = 1 CSS px，什么都不被拉伸，
+ * rx = ry = height/2 是**正圆角**，描边也有正常的抗锯齿。
+ *
+ * 走过的三条弯路，别再回去：
+ *   ① 四段 background-size + transition-delay —— 四边各自过渡，边角之间有停顿，
+ *      像"四条线依次出现"而不是"一笔描一圈"。
+ *   ② SVG viewBox="0 0 100 36" + preserveAspectRatio="none" —— 圆角先被裁成
+ *      min(w,h)/2 再被非等比缩放，**拉成椭圆**。
+ *   ③ conic-gradient 扫边 —— 便宜且永远是正胶囊，但在**半圆端**，等角度线几乎与
+ *      1.5px 的细环相切，光栅化后出现**摩尔纹**。conic 不适合画曲线。
+ *
+ * 节奏：用 ease-draw（慢起步 → 中段快 → 收尾明显放慢），像加载条一样"落位"。
+ * 匀速的 linear 会让首尾显得突兀。
+ * ========================================================================== */
+
+.mo-border-draw {
+  position: relative;
+  /* The CSS border is the resting hairline. It stays declared (so the layout
+     box, the pill radius and the flex centring are all unchanged) but is made
+     transparent while the SVG ring is drawing, otherwise the two would show at
+     once. The ring traces this same box, on top. */
+  color: var(--mo-ink);
+}
+
+.mo-border-draw .mo-ring {
+  /* Sit exactly on the button's outer edge, whatever the border width is. */
+  position: absolute;
+  left: calc(-1 * var(--mo-ring-inset, 1px));
+  top: calc(-1 * var(--mo-ring-inset, 1px));
+  width: calc(100% + 2 * var(--mo-ring-inset, 1px));
+  height: calc(100% + 2 * var(--mo-ring-inset, 1px));
+  pointer-events: none;
+  /* the stroke is centred on the path, so half of it sits outside the box */
+  overflow: visible;
+}
+
+.mo-border-draw .mo-ring rect {
+  /* ⚠️ Geometry is set from JS (BorderRing), NOT here.
+     `rx: 999px` / `ry: 999px` looks like "fully rounded" but SVG clamps the two
+     INDEPENDENTLY: rx → width/2 (69.25) and ry → height/2 (23.25). Unequal
+     radii make the corners elliptical, and rx = width/2 collapses the top edge
+     to zero length, so the shape degenerates into a plain ellipse. Measured
+     perimeter was 308.3 against 330.1 for a true pill.
+     A capsule needs rx === ry === height/2, which requires measuring the box. */
+  fill: none;
+  stroke: var(--mo-accent);
+  stroke-width: 1.5px;
+  /* Dash pattern: 200 on / 200 off — deliberately LONGER than the perimeter
+     (which `pathLength="100"` normalises to 100).
+     With `100 / 100`, offset 100 lands exactly on the pattern boundary, and
+     antialiasing leaks a ~2px accent segment at rest (measured 0.8% coverage),
+     while offset 0 leaves a hairline gap at the seam (measured 99.7%).
+     With `200 / 200` the path sits wholly inside the dash or wholly inside the
+     gap, so both ends are clean.
+     ⚠️ Do NOT use a negative offset to "overlap the seam" — it pushes the
+     start of the path past the pattern and opens a 5px gap (measured 98.6%). */
+  stroke-dasharray: 200;
+  /* ⚠️ The offset travels only HALF the dash length: 200 → 99, not 200 → 0.
+     Visible length is `(dasharray − offset) / perimeter`, i.e. `(200 − o) / 100`
+     here. So an offset that runs the full 200 → 0 draws the whole ring by the
+     time it reaches 100 — half way — and the second half of the transition is
+     spent with the stroke already complete. That is what ate the slow tail:
+     measured 0.5s transition finishing the visible stroke in 185ms, with the
+     remaining ~300ms dead. Stopping at 99 keeps visible length linear in the
+     offset, so the easing curve actually governs the pacing. */
+  stroke-dashoffset: 200;
+  /* ⚠️ Do NOT rotate this rect. An earlier version used
+     `transform: rotate(-90deg)` to start at 12 o'clock — but the viewBox is
+     not square, so rotating turned the pill 90° into a tall vertical capsule.
+     The path already starts top-left and runs clockwise, as the copy says. */
+  transition: stroke-dashoffset var(--mo-dur-glacial) var(--mo-ease-draw);
+}
+
+.mo-border-draw:hover,
+.mo-border-draw:focus-visible,
+.mo-border-draw.is-drawn,
+.mo-border-draw.is-live {
+  color: var(--mo-accent);
+  border-color: var(--mo-accent);
+}
+
+/* 99, not 0 and not 100:
+   - 0 would be the far side of the dash pattern (offset travels 200 → 0 = two
+     laps' worth of travel for one lap of ink; see the note on dashoffset).
+   - 100 is exactly where the pattern crosses from "on" to "off", so the last
+     point of the path can land in the gap and leave a sub-pixel seam.
+   99 keeps the whole path strictly inside the "on" run, so the ring closes
+   cleanly. Measured: rest 0% ink, done 100% coverage, no seam. */
+.mo-border-draw:hover .mo-ring rect,
+.mo-border-draw:focus-visible .mo-ring rect,
+.mo-border-draw.is-drawn .mo-ring rect,
+.mo-border-draw.is-live .mo-ring rect {
+  stroke-dashoffset: 99;
+}
+
+
+/* ============================================================================
+ * PART 3 — Magnetic Hover 磁吸跟随        [01-03]  *需要 JS
+ * 200ms / ease-elastic / max-offset 24px / rotate 8° / hover-scale 1.05
+ * JS 负责写入 --mo-mx / --mo-my（-1 ~ 1 归一化光标相对偏移）
+ *
+ * 用户反馈「要更夸张、要有小角度旋转、要有阻尼弹性」——
+ * 旧值 14px × 0.35 强度 = 实际只挪 4.9px，几乎看不出来。
+ * 现在三件事一起动：位移 + 随水平偏移的旋转 + 悬停放大，
+ * 内层再反向位移做视差，读起来才像"被磁铁吸住"。
+ * ========================================================================== */
+
+.mo-magnetic {
+  --mo-mx: 0;
+  --mo-my: 0;
+  --mo-magnet-scale: 1;
+  transform:
+    translate(
+      calc(var(--mo-mx) * var(--mo-magnet-max)),
+      calc(var(--mo-my) * var(--mo-magnet-max))
+    )
+    rotate(calc(var(--mo-mx) * var(--mo-magnet-rotate)))
+    scale(var(--mo-magnet-scale));
+  /* A short transition on every pointermove is what gives the follow its
+     damping: the button keeps chasing the cursor instead of snapping to it.
+     ease-elastic supplies the overshoot on the way back to rest. */
+  transition: transform var(--mo-dur-quick) var(--mo-ease-elastic);
+  will-change: transform;
+}
+
+.mo-magnetic:hover,
+.mo-magnetic:focus-visible {
+  --mo-magnet-scale: 1.05;
+}
+
+/* 内层反向微移，制造「光影跟随」的纵深错觉。
+   ⚠️ This needs an element child — the label is wrapped in `.mo-label` in
+   MotionButton.tsx precisely so this rule has something to move. */
+.mo-magnetic > .mo-label {
+  display: inline-block;
+  transform: translate(
+    calc(var(--mo-mx) * -6px),
+    calc(var(--mo-my) * -6px)
+  );
+  transition: transform var(--mo-dur-quick) var(--mo-ease-elastic);
+}
+
+
+/* ============================================================================
+ * PART 4 — Press Scale 按压缩放           [01-04]
+ * 200ms / ease-spring
+ * 1.00 → 1.05(hover) → 0.93(press) → 1.04(release) → 1.00(settle)
+ *
+ * 用户：「Press Scale、Ripple 等四个要做得**更 Q 弹灵动**一些」。
+ * 旧版幅度太小（1.03 / 0.95 / 1.02），按下去几乎看不出来，回弹也没有余振。
+ * 现在三件事一起加大：
+ *   · 悬停抬得更高（1.05）并抬起阴影，先"鼓"起来
+ *   · 按下压得更狠（0.93）+ 阴影收紧，像真的被按进去
+ *   · 松手时用 `ease-spring` 的过冲自然弹回，并让**阴影也带弹性**（迟 40ms），
+ *     所以回弹是"肉"的 —— 这是 Q 弹的关键：位移和阴影不同步，才有果冻感
+ * ========================================================================== */
+
+.mo-press-scale {
+  box-shadow: var(--mo-shadow-rest);
+  /* 回弹的**过程**要看得见：位移与阴影用 `base · 400ms` + 过冲曲线，
+     颜色仍走 `quick · 200ms`（颜色变慢会显得脏）。
+     用户口径："任何按钮都不追求快" —— Q 弹 = 幅度 + 过程，不是更短。 */
+  transition:
+    transform var(--mo-dur-base) var(--mo-ease-spring),
+    box-shadow var(--mo-dur-base) var(--mo-ease-standard),
+    background-color var(--mo-dur-quick) var(--mo-ease-standard),
+    border-color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+.mo-press-scale:hover {
+  transform: scale(var(--mo-scale-hover));
+  box-shadow: var(--mo-shadow-hover);
+  background-color: var(--mo-primary-wash);
+  border-color: var(--mo-accent);
+  color: var(--mo-accent);
+}
+
+.mo-press-scale:active {
+  /* scale down hard AND drop the shadow — the two together are what sell the
+     "pressed into the page" feeling, not the scale alone */
+  transform: scale(var(--mo-scale-press));
+  box-shadow: var(--mo-shadow-press);
+  /* faster on the way down than on the way up: press should feel immediate,
+     release should feel bouncy */
+  transition-duration: var(--mo-dur-instant);
+}
+
+
+/* ============================================================================
+ * PART 5 — Arrow Slide 箭头滑入           [01-05]
+ * 300ms / ease-standard（文字）/ ease-spring（箭头）/ icon-travel 16px
+ * 结构：<button class="mo-btn mo-arrow-slide"><span class="mo-label">Explore</span>
+ *        <span class="mo-ico">→</span></button>
+ *
+ * 用户要求：**默认文字居中**，悬停时**文字往左、箭头从右弹入**。
+ * 旧版给按钮留了 54px 的右内边距来"腾地方"，结果文字天生偏左，不居中。
+ * 现在内边距左右对称（文字真的居中），箭头绝对定位在右内侧、
+ * 静止时藏在按钮外（translateX 出去 + opacity 0），悬停才滑进来。
+ * ========================================================================== */
+
+.mo-arrow-slide { overflow: hidden; }
+
+.mo-arrow-slide > .mo-label {
+  display: inline-block;
+  transition: transform var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+.mo-arrow-slide > .mo-ico {
+  position: absolute;
+  right: 14px;
+  /* parked outside the right edge at rest, so nothing peeks */
+  transform: translateX(calc(var(--mo-icon-travel) + 4px));
+  opacity: 0;
+  transition:
+    transform var(--mo-dur-fast) var(--mo-ease-spring),
+    opacity var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+/* ⚠️ No `:hover` selector here — the JS state machine owns this.
+   With `:hover` in the list the browser would open the arrow on every mouse
+   jitter, straight past the cooldown gate, which is exactly the "来回动"
+   the user reported. `.is-shown` is set by bindArrowSlide, which throttles
+   the enter direction and lets the leave direction through immediately. */
+.mo-arrow-slide.is-shown > .mo-ico,
+.mo-arrow-slide.is-live > .mo-ico,
+.mo-arrow-slide:focus-visible > .mo-ico {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.mo-arrow-slide.is-shown > .mo-label,
+.mo-arrow-slide.is-live > .mo-label,
+.mo-arrow-slide:focus-visible > .mo-label {
+  transform: translateX(calc(-1 * var(--mo-arrow-shift)));
+}
+
+
+/* ============================================================================
+ * PART 6 — Ripple Click 涟漪点击          [02-01]  *需要 JS
+ * tide · 1000ms / ease-settle / 4 层同心波
+ *
+ * 用户：「当前**像扩散而不像涟漪**，效果比较简陋」→ 改成多层同心环。
+ * 用户复审（2026-09-17）：「**太快**（比最开始还快）、**太淡、不细腻高级**；
+ * 涟漪其实生效了，是按钮小 + 效果密而淡所以难看到」。
+ *
+ * ⭐ 2026-09-17 晚间截图后找到的**几何根因**（这才是"看不到涟漪"的主因）：
+ *   环画的是**正圆**。按钮是 100×48 的扁胶囊，圆的直径一旦超过 48px，
+ *   上下两侧立刻被 `overflow: hidden` 裁掉 —— 屏幕上只剩下**左右两段竖直细弧**，
+ *   看着像按钮边缘被描了一道，完全不成涟漪。
+ *   → 改成**椭圆波**：水平/垂直半径分别取"到较远一侧边的距离"，
+ *     于是波峰**同时抵达四边**，整圈始终可见，也真正"贴合按钮"这个容器。
+ *     真实水面也是跟着容器形状走的，不是画正圆。
+ *
+ * 另外两处（参数理由见 motion.tokens.css §5）：
+ *   · 时长 600 → **1000ms**（tide 档），比原来慢 ~1.7×
+ *   · 更厚更清楚：4.5px 起步、起点不透明度 1，3 圈错峰 220ms
+ *
+ * 缓动用 `ease-settle`（长尾收束）：水波先快后慢，外圈走到边缘时明显减速，
+ * 与"加载条落位"是同一种节奏 —— 这是"高级"的来源，不是加更多圈。
+ * ========================================================================== */
+
+.mo-ripple { overflow: hidden; }
+
+/* ⚠️ The ring must sit ABOVE the button's own background layer, not below it.
+   `.mo-btn` has `isolation: isolate` (to trap negative-z children) and a
+   transparent background — so a ring at `z-index: -1` ends up BEHIND the
+   transparent button and is invisible against the page. The old version got
+   away with `-1` only because it was a SOLID disc; an outline ring shows
+   nothing. Use `z-index: 0` and lift the label above it. */
+.mo-ripple-wave {
+  position: absolute;
+  z-index: 0;
+  /* ⚠️ 宽高**分别**给值（由 JS 按落点算），不是同一个 --mo-wave-size：
+     正圆在扁按钮里会被裁成两条竖弧（见上方 PART 6 的说明）。
+     椭圆的长/短半轴 = 落点到水平/垂直方向较远那一侧的距离，
+     所以 scale 到 1 时，波峰刚好同时碰到上下左右四条边。 */
+  width: var(--mo-wave-w, 100px);
+  height: var(--mo-wave-h, 48px);
+  margin-left: calc(var(--mo-wave-w, 100px) / -2);
+  margin-top: calc(var(--mo-wave-h, 48px) / -2);
+  border-radius: 50%;
+  /* 环，不是实心圆 —— 这是"涟漪"与"扩散色块"的分界 */
+  border: var(--mo-ripple-stroke, 4.5px) solid var(--mo-accent);
+  background: transparent;
+  opacity: 0;
+  pointer-events: none;
+  /* `ease-settle` = 先快后慢 + 长尾收束：外圈走到按钮边缘时明显减速，
+     与加载条落位同一种节奏。之前用 `ease-decel` 会在中段就冲完，
+     读起来"一下就没了"——这正是用户说的"太快"。
+     ⚠️ 用 MOTION 令牌，不要引 index.css 的页面级缓动。 */
+  animation: mo-ripple-out var(--mo-dur-tide) var(--mo-ease-settle) forwards;
+  animation-delay: var(--mo-ripple-delay, 0ms);
+}
+
+/* the label stays above the rings */
+.mo-ripple > .mo-label { position: relative; z-index: 1; }
+
+@keyframes mo-ripple-out {
+  0% {
+    /* 起点就是一条清晰的细环，不是"从一个小点炸开"—— 后者读作扩散而非涟漪 */
+    transform: translate(0, 0) scale(0.12);
+    border-width: var(--mo-ripple-stroke, 4.5px);
+    opacity: 1;
+  }
+  10% {
+    opacity: 0.92;
+  }
+  55% {
+    opacity: 0.62;
+  }
+  100% {
+    /* 铺满按钮即止（`--mo-ripple-max` 已收到 1.15，整段行程都在按钮内可见）；
+       环在扩散中变薄，读作波的能量在衰减 */
+    transform: translate(0, 0) scale(var(--mo-ripple-max));
+    border-width: 1px;
+    opacity: 0;
+  }
+}
+
+
+/* ============================================================================
+ * PART 7 — Glow Pulse 光晕脉冲            [02-02]
+ * 800ms / ease-standard / shadow 0 0 0 → 0 0 24px / scale 1 → 1.02
+ * ========================================================================== */
+
+.mo-glow-pulse {
+  transition:
+    transform var(--mo-dur-glacial) var(--mo-ease-standard),
+    box-shadow var(--mo-dur-glacial) var(--mo-ease-standard),
+    border-color var(--mo-dur-glacial) var(--mo-ease-standard),
+    color var(--mo-dur-glacial) var(--mo-ease-standard);
+}
+
+.mo-glow-pulse:hover,
+.mo-glow-pulse:focus-visible {
+  transform: scale(var(--mo-scale-lift));
+  box-shadow: var(--mo-glow);
+  border-color: var(--mo-accent);
+  color: var(--mo-accent);
+}
+
+/* OUTER PULSE 阶段：向外扩散的呼吸环 */
+.mo-glow-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mo-glow-pulse:hover::after,
+.mo-glow-pulse:focus-visible::after {
+  animation: mo-glow-out var(--mo-dur-glacial) var(--mo-ease-standard) infinite;
+}
+
+@keyframes mo-glow-out {
+  0%   { box-shadow: 0 0 0 0 rgb(59 130 246 / 0.45); opacity: 1; }
+  100% { box-shadow: 0 0 0 14px rgb(59 130 246 / 0); opacity: 0; }
+}
+
+/* 深色底变体（参考图中光晕效果置于黑底展示） */
+.mo-glow-pulse--dark {
+  --mo-accent: #60a5fa;
+  background: #14181f;
+  border-color: #2a3038;
+  color: #f2f5fa;
+}
+.mo-glow-pulse--dark:hover,
+.mo-glow-pulse--dark:focus-visible {
+  background: #1b2430;
+  box-shadow: 0 0 24px rgb(59 130 246 / 0.65);
+  color: #fff;
+}
+
+
+/* ============================================================================
+ * PART 8 — Liquid Fill 液体填充           [02-03]
+ * 700ms / ease-standard / wave-height 6px / overflow hidden
+ * ========================================================================== */
+
+/* 水面由 canvas 物理模拟绘制（见 src/buttons/water.ts）。
+   这里只留容器与文字层——CSS 版的"椭圆波峰"做不到左右高低不一的水滴感，
+   而且波峰溢出会被看见（用户看到默认就有一段水）。 */
+.mo-liquid-fill {
+  overflow: hidden;
+  transition:
+    color var(--mo-dur-lazy) var(--mo-ease-standard),
+    border-color var(--mo-dur-lazy) var(--mo-ease-standard);
+}
+
+.mo-liquid-fill .mo-water-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.mo-liquid-fill:hover,
+.mo-liquid-fill:focus-visible,
+.mo-liquid-fill.is-live {
+  color: var(--mo-accent-ink);
+  border-color: var(--mo-accent);
+}
+
+
+/* ============================================================================
+ * PART 9 — Split Reveal 分裂展开          [02-04]
+ * 500ms / ease-standard / 逐字符位移淡出 → 新字符逐字淡入
+ *
+ * 用户反馈：
+ *   ❌ 默认态像是把文字**直接对半切开**；中间有字母时**容易被切成两半**
+ *   ❌ 交互结束后出现**字体叠加**（截图里的 `SREVEALEDT`）
+ *   ✅ 期望：交互时**字符位移淡出**，后续长出来的字符**淡入**
+ *
+ * 旧实现的根因：用 `clip-path: inset(0 50% 0 0)` 在**正中间硬切**，
+ * 跨中线的那个字母必然被切；而且两半位移后 `opacity` 仍是 1，
+ * 新文案又叠上来 —— 两层同时可见，就成了 `SREVEALEDT`。
+ *
+ * 现在改为**逐字符**处理（见 MotionButton.tsx 的 split-reveal 分支）：
+ *   · 每个字符是一个 `.mo-split__ch`，带 `--mo-dir`（离中线的归一化距离）
+ *   · 悬停时每个字符沿自己的方向**位移 + 淡出到 0**，不存在"切开"
+ *   · 新文案的每个字符 `.mo-split__nch` 按 `--mo-i` **错峰淡入**
+ *   · 旧字符最终 opacity 为 0，**不会留下叠字**
+ * ========================================================================== */
+
+.mo-split-reveal { overflow: hidden; }
+
+.mo-split-reveal .mo-split {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+  /* the two layers are stacked; the old one must not affect the width once it
+     fades, so the ghost reserves the box and both are absolutely positioned */
+  white-space: nowrap;
+}
+
+/* 占位层：撑出宽度但不显示，保证按钮不塌 */
+.mo-split-reveal .mo-split__ghost { visibility: hidden; }
+
+.mo-split-reveal .mo-split__old,
+.mo-split-reveal .mo-split__next {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* 每个旧字符：`--mo-dir` 是它离中线的距离（负=左，正=右），
+   位移与旋转都按这个方向来，所以是"从中间裂开"而不是整体平移 */
+.mo-split-reveal .mo-split__ch {
+  display: inline-block;
+  will-change: transform, opacity;
+  transition:
+    transform var(--mo-dur-slow) var(--mo-ease-standard),
+    opacity var(--mo-dur-slow) var(--mo-ease-standard);
+}
+
+/* 新字符：按索引错峰，逐个浮起 */
+.mo-split-reveal .mo-split__nch {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.5em) scale(0.92);
+  will-change: transform, opacity;
+  transition:
+    transform var(--mo-dur-slow) var(--mo-ease-standard),
+    opacity var(--mo-dur-slow) var(--mo-ease-standard);
+  /* stagger: each character starts a beat after the one before it */
+  transition-delay: calc(var(--mo-i, 0) * 45ms);
+}
+
+/* ---- 悬停 / 点击重放：字符位移淡出 ---- */
+.mo-split-reveal:hover .mo-split__ch,
+.mo-split-reveal:focus-visible .mo-split__ch,
+.mo-split-reveal.is-live .mo-split__ch {
+  /* push outward proportional to the distance from centre, with a floor so the
+     middle glyphs still visibly part */
+  transform:
+    translateX(calc(var(--mo-dir, 0) * var(--mo-split-shift)))
+    rotate(calc(var(--mo-dir, 0) * 6deg))
+    scale(0.86);
+  opacity: 0;
+}
+
+/* ---- 新字符逐个淡入 ---- */
+.mo-split-reveal:hover .mo-split__nch,
+.mo-split-reveal:focus-visible .mo-split__nch,
+.mo-split-reveal.is-live .mo-split__nch {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.mo-split-reveal:hover,
+.mo-split-reveal:focus-visible,
+.mo-split-reveal.is-live {
+  border-color: var(--mo-accent);
+  color: var(--mo-accent-ink);
+  background: var(--mo-accent);
+}
+
+
+/* ============================================================================
+ * PART 10 — Shadow Lift 悬浮抬升          [02-05]
+ * 300ms / ease-standard / y 0 → -3 → -6 → 0 / shadow 0 2px 6px → 0 12px 24px
+ * ========================================================================== */
+
+.mo-shadow-lift {
+  box-shadow: var(--mo-shadow-rest);
+  transition:
+    transform var(--mo-dur-fast) var(--mo-ease-standard),
+    box-shadow var(--mo-dur-fast) var(--mo-ease-standard),
+    border-color var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+.mo-shadow-lift:hover {
+  transform: translateY(-3px) scale(var(--mo-scale-lift));
+  box-shadow: var(--mo-shadow-hover);
+  border-color: var(--mo-accent);
+}
+
+.mo-shadow-lift:active {
+  transform: translateY(0) scale(1);
+  box-shadow: var(--mo-shadow-press);
+}
+
+/* MAX LIFT 档：用于主 CTA */
+.mo-shadow-lift--max:hover {
+  transform: translateY(-6px) scale(var(--mo-scale-lift));
+  box-shadow: var(--mo-shadow-max);
+}
+
+
+/* ============================================================================
+ * PART 11 — Loading Morph 加载形变        [03-01]  *需要 JS
+ * slow · 500ms / ease-settle / rect → circle / opacity 1 → 0
+ * JS 切换 .is-loading 并写入 --mo-w（原始宽度）
+ *
+ * 用户：「点击缩成一个圆的过程**做的不优雅**；但**还原动画做得比较优雅**，
+ *       可以参考"还原"的做法重做"收缩"」。
+ *
+ * 参考"还原"（圆 → 胶囊）为什么好看：它是**有顺序**的 —— 先圆化再变长，
+ * 而且落位时慢下来。旧版收缩是"宽度、内边距、圆角、颜色**同时**冲 400ms"，
+ * 像被抽走气的皮球，没有层次。
+ *
+ * 现在做了三件事：
+ *   ① 时长 400 → 500ms，缓动换 `ease-settle`（尾段收束）—— 收到最后慢下来"落位"
+ *   ② 圆角**延后 80ms** 启动：先变短，再变圆。这一拍的错位就是"优雅"的来源
+ *   ③ 转圈延后到 340ms 才淡入：等宽度基本收完再出现，不再和收缩抢戏
+ * ========================================================================== */
+
+.mo-loading-morph {
+  overflow: hidden;
+  min-width: 44px;
+  width: var(--mo-w, auto);
+  /* 用户复审两轮：「交互感太迅速」「这段动画再做得细腻一点」——
+     收缩拉到 `glacial · 800ms`（本档最长），并把动作拆成**三条不同时长的线**，
+     这样收拢过程是"分层推进"而不是"所有属性一起冲到底"：
+       · 宽度/内边距 800ms —— 主体，长尾落位
+       · 圆角       500ms + 60ms 延迟 —— 比宽度早收工，读作"先圆润、再收短"
+       · 按下反馈   100ms —— 立即，不能等 */
+  transition:
+    width var(--mo-dur-glacial) var(--mo-ease-settle),
+    min-width var(--mo-dur-glacial) var(--mo-ease-settle),
+    height var(--mo-dur-glacial) var(--mo-ease-settle),
+    padding var(--mo-dur-glacial) var(--mo-ease-settle),
+    background-color var(--mo-dur-slow) var(--mo-ease-settle),
+    border-color var(--mo-dur-slow) var(--mo-ease-settle),
+    /* 圆角比宽度早收工，且延后 60ms 起步：先圆润、再收短 */
+    border-radius var(--mo-dur-slow) var(--mo-ease-settle) 60ms,
+    transform var(--mo-dur-instant) var(--mo-ease-standard);
+}
+
+.mo-loading-morph:active { transform: scale(0.96); }
+
+/* 文字要比宽度先走：不然会看到"一行字在越来越窄的框里被挤扁" */
+.mo-loading-morph .mo-label {
+  transition: opacity 120ms linear;
+}
+
+/* ⚠️ 宽度取 `--mo-h`（JS 量出的当前高度），**不是写死的 44px**：
+   写死 44 而按钮高 48 时，收出来是个**椭圆**（截图实测）。
+   宽 = 高，才必然是正圆。
+   ⚠️ 选择器写成 `.mo-btn.mo-loading-morph.is-loading`（特异性 0,3,0）是**必须的**：
+   演示区有 `.btn-card__stage .mo-btn { padding: 13px 26px }`（0,2,0），
+   它在 index.css 里后加载，会把这里的 `padding: 0` 压掉 ——
+   宽度于是被左右各 26px 的 padding 撑住，收不下去（实测卡在 53.6px）。 */
+.mo-btn.mo-loading-morph.is-loading {
+  /* ⚠️ **宽和高都要钉到同一个 `--mo-h`**。只钉宽度是不够的：
+     高度由演示区的 `min-height: 48px` 撑着，而 `--mo-h` 是 `Math.round()`
+     过的整数，两者能差出零点几到一像素 —— 用户一眼就看出「这个圆不太圆」。
+     宽 = 高 = `--mo-h`，才是**严格**的正圆。
+     再加一条 `box-sizing: border-box`：默认的 content-box 会让 width/height
+     各自**再叠一层边框**，两边叠出来的偏差不一样（实测 48.6 × 49.6，差 1px）。
+     border-box 下宽高都以同一个边框盒计算，数值严格相等。 */
+  box-sizing: border-box;
+  width: var(--mo-h, 44px);
+  height: var(--mo-h, 44px);
+  min-width: var(--mo-h, 44px);
+  /* ⚠️ `min-height` 也必须一起钉住：演示区有 `min-height: 48px`（0,2,0），
+     它会顶住收缩后的高度，而宽高一旦不同源，"圆"就变成 48.2 × 49.6 的椭圆。 */
+  min-height: var(--mo-h, 44px);
+  padding: 0;
+  border-radius: 50%;
+  border-color: var(--mo-accent);
+  background-color: var(--mo-accent);
+  /* 转圈时圆轻微"呼吸"：等待期间画面不是死的（用户："交互内容和效果有点少"）；
+     并且第一拍是 1.07 → 1 的**收拢回弹** —— 让"收到位"这一下有落定的手感。 */
+  animation: mo-load-breathe 1.8s var(--mo-ease-standard) infinite;
+}
+
+@keyframes mo-load-breathe {
+  0%   { transform: scale(1.07); }
+  14%  { transform: scale(1); }
+  57%  { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
+.mo-loading-morph.is-loading .mo-label { opacity: 0; }
+
+/* ---------- 完成态：撑回长条 + 换成 Saved ----------
+   用户：「转完圈又恢复初始状态，对于一个 save 按钮好像不太合理」——
+   所以它不再退回 "Save"，而是停在 **"Saved" 的长条**上
+   （刻意不是圆、不是对勾 —— 那是 Success Morph 的活，两者要能区分开）。 */
+.mo-loading-morph .mo-done {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms linear;
+}
+
+.mo-btn.mo-loading-morph.is-done {
+  /* 宽度撑回最初量到的那个值 —— 从圆长回胶囊，和收缩走同一条曲线 */
+  width: var(--mo-w, auto);
+  /* 高度交还给 min-height（收缩态把它钉成了正方形，这里必须放开） */
+  height: auto;
+  min-width: 44px;
+  padding: 11px 22px;
+  border-radius: var(--mo-radius);
+  background-color: var(--mo-success);
+  border-color: var(--mo-success);
+  color: #fff;
+  animation: none;
+}
+
+.mo-loading-morph.is-done .mo-label { opacity: 0; }
+.mo-loading-morph.is-done .mo-done { opacity: 1; }
+.mo-loading-morph.is-done .mo-spinner {
+  opacity: 0;
+  transition-duration: 120ms;
+  transition-delay: 0ms;
+  animation-play-state: paused;
+}
+
+/* 转圈指示器 */
+.mo-loading-morph .mo-spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+  opacity: 0;
+  /* 延后到宽度收得差不多时才淡入（500ms 的 68%） */
+  transition: opacity 160ms linear 340ms;
+  animation: mo-spin 0.7s linear infinite;
+  animation-play-state: paused;
+}
+
+.mo-loading-morph.is-loading .mo-spinner {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+@keyframes mo-spin { to { transform: rotate(360deg); } }
+
+
+/* ============================================================================
+ * PART 12 — Success Morph 成功状态        [03-02]  *需要 JS
+ * glacial · 800ms 收缩 / 一笔画弧 1200ms / 对勾 slow · 500ms
+ *
+ * 用户 2026-09-17：「描述是**转完圈**变成一个绿底的对勾，但**没有转圈效果渲染出来** ——
+ * 按下后停一会儿，然后变成绿底对勾」，并要求「新增的转圈**不要和 Save 重复**，
+ * 要有新意、不同」。
+ *
+ * 旧版确实没有加载指示器：`.mo-spinner` 的定位/尺寸规则写在 PART 11（带
+ * `.mo-loading-morph` 前缀），success 这边的 `.mo-spinner` 是个 0×0 的空 span，
+ * 什么都渲染不出来 —— 所以只有"停一会儿，然后变绿"。
+ *
+ * 用户紧接着又补了两条（很关键）：
+ *   ③ 「点击后变圆这段**没有动画**呀，一点也不优雅」
+ *   ④ 「形式和 Loading Morph **一样了，不能这样敷衍**」+「对勾的绿泛光很棒」
+ *
+ * 所以方向修正为：**绝不收缩成圆** —— 那是 Loading Morph 的形态语言，
+ * 照抄就是敷衍。Success Morph **保持胶囊形状不变**，加载感来自
+ * **按钮内部一道循环扫掠的光带**（"正在提交"的经典语汇），
+ * 完成时整块转绿 + 对勾用描边画出来 + 外面那圈泛光（用户点名说好看的，保留）。
+ *
+ * 至此三种加载语言互不重复：
+ *   · Loading Morph = 形状**收缩成圆** + 细环绕圈
+ *   · Success Morph = 形状**不变** + 内部光带扫掠
+ *   · Progress      = 形状**不变** + 确定进度条 + 数字
+ * ========================================================================== */
+
+.mo-success-morph {
+  transition:
+    background-color var(--mo-dur-slow) var(--mo-ease-settle),
+    border-color var(--mo-dur-slow) var(--mo-ease-settle),
+    color var(--mo-dur-slow) var(--mo-ease-settle);
+}
+
+.mo-success-morph:active { transform: scale(0.97); }
+
+.mo-success-morph.is-loading {
+  border-color: var(--mo-accent);
+  background-color: var(--mo-accent);
+  color: var(--mo-accent-ink);
+  /* 光带要贴着胶囊边界走，所以这里必须有裁剪（`.is-success` 时不裁剪，
+     否则外面那圈泛光会被切掉） */
+  overflow: hidden;
+}
+
+/* 扫掠光带：一道柔光在按钮内部从左到右循环 —— 不确定进度，
+   "不知道还要多久"，正好是"提交到服务器"的语义。
+   （不用确定进度条，那是 Progress 按钮的活；也不收缩成圆，那是 Save 的活。） */
+.mo-success-morph.is-loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: linear-gradient(
+    100deg,
+    transparent 32%,
+    rgb(255 255 255 / 0.40) 50%,
+    transparent 68%
+  );
+  background-size: 58% 100%;
+  background-repeat: no-repeat;
+  animation: mo-submit-sweep 1.5s var(--mo-ease-standard) infinite;
+}
+
+@keyframes mo-submit-sweep {
+  from { background-position: -70% 0; }
+  to   { background-position: 170% 0; }
+}
+
+/* ⚠️ 文字必须在**成功态**隐藏，否则对勾会直接压在 "SUBMIT" 上
+   （截图实测：绿底 + 白勾 + 黑字叠在一起）。
+   loading 期间**保留**文字 —— 那是"正在处理 Submit"的意思，不该消失。 */
+.mo-success-morph .mo-label { transition: opacity 160ms linear; }
+.mo-success-morph.is-success .mo-label { opacity: 0; }
+
+.mo-success-morph .mo-check {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+}
+
+.mo-success-morph .mo-check path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+}
+
+.mo-success-morph.is-success {
+  background-color: var(--mo-success);
+  border-color: var(--mo-success);
+}
+
+
+.mo-success-morph.is-success .mo-check {
+  opacity: 1;
+  transition: opacity 100ms linear;
+}
+
+/* 对勾用 `ease-settle` 画出来：起笔快、收笔慢，读作"稳稳地打上勾"（尾段收束） */
+.mo-success-morph.is-success .mo-check path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset var(--mo-dur-slow) var(--mo-ease-settle) 100ms;
+}
+
+/* 完成后的散射短线（参考图 SUCCESS 阶段四角的庆祝线） */
+.mo-success-morph.is-success::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgb(59 178 111 / 0.5);
+  animation: mo-success-pop var(--mo-dur-slow) var(--mo-ease-standard) forwards;
+}
+
+@keyframes mo-success-pop {
+  from { box-shadow: 0 0 0 0 rgb(59 178 111 / 0.55); }
+  to   { box-shadow: 0 0 0 16px rgb(59 178 111 / 0); }
+}
+
+
+/* ============================================================================
+ * PART 13 — Progress Button 进度按钮      [03-03]  *需要 JS
+ * 600ms / ease-standard / progress 0% → 100% / complete color #3BB26F
+ * JS 写入 --mo-progress，完成后加 .is-complete
+ * ========================================================================== */
+
+.mo-progress {
+  --mo-progress: 0%;
+  overflow: hidden;
+}
+
+/* ⚠️ 这里**故意不给 `width` 加 transition**（旧版是 `width 600ms linear`）。
+   那层 transition 是"填充条和百分比不一致"的**根因**：百分比数字由 rAF 逐帧
+   直接写入，而填充条还要再走一段 600ms 的线性过渡 —— 于是条永远慢数字一截，
+   加/去载时尤其明显。rAF 逐帧驱动本身已经是平滑的，不需要再补过渡。
+   保留的这条只作用于**完成时的颜色**（进度条融进绿色底），不影响同步。 */
+.mo-progress::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: var(--mo-progress);
+  background: color-mix(in srgb, var(--mo-accent) 22%, transparent);
+  transition: background var(--mo-dur-slow) var(--mo-ease-settle);
+}
+
+.mo-progress .mo-label { flex: 1; text-align: center; }
+
+.mo-progress .mo-pct {
+  font-variant-numeric: tabular-nums;
+  min-width: 4ch;
+  text-align: right;
+}
+
+.mo-progress.is-complete {
+  background: var(--mo-success);
+  border-color: var(--mo-success);
+  color: #fff;
+}
+
+.mo-progress.is-complete::before { width: 100%; background: transparent; }
+
+
+/* ============================================================================
+ * PART 14 — Icon Morph 图标变形           [03-04]
+ * 400ms / ease-spring / path morph / scale 1.0 → 1.0
+ * 用两条 bar 的旋转相位差模拟 + → 花形 → × 的连续变形路径。
+ * ========================================================================== */
+
+.mo-icon-morph .mo-morph {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.mo-icon-morph .mo-bar {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform var(--mo-dur-base) var(--mo-ease-spring);
+}
+
+/* 默认是 + ：横竖正交 */
+.mo-icon-morph .mo-bar--h { transform: rotate(0deg); }
+.mo-icon-morph .mo-bar--v { transform: rotate(90deg); }
+
+/* hover 后变 × ：旋转 45° / 135° 并带一次过冲中间态 */
+.mo-icon-morph:hover .mo-bar--h,
+.mo-icon-morph.is-morphed .mo-bar--h { transform: rotate(45deg) scaleX(0.94); }
+
+.mo-icon-morph:hover .mo-bar--v,
+.mo-icon-morph.is-morphed .mo-bar--v { transform: rotate(135deg) scaleX(0.94); }
+
+/* 中间形态：短暂的「花形」过渡，由 keyframes 提供 4 段相位 */
+.mo-icon-morph.is-animating .mo-bar--h { animation: mo-morph-h var(--mo-dur-base) var(--mo-ease-spring); }
+.mo-icon-morph.is-animating .mo-bar--v { animation: mo-morph-v var(--mo-dur-base) var(--mo-ease-spring); }
+
+@keyframes mo-morph-h {
+  0%   { transform: rotate(0deg) scaleX(1); }
+  35%  { transform: rotate(60deg) scaleX(0.8); }
+  70%  { transform: rotate(30deg) scaleX(1.05); }
+  100% { transform: rotate(45deg) scaleX(0.94); }
+}
+@keyframes mo-morph-v {
+  0%   { transform: rotate(90deg) scaleX(1); }
+  35%  { transform: rotate(150deg) scaleX(0.8); }
+  70%  { transform: rotate(120deg) scaleX(1.05); }
+  100% { transform: rotate(135deg) scaleX(0.94); }
+}
+
+
+/* ============================================================================
+ * PART 15 — Text Swap 文案切换            [03-05]  *需要 JS（自动构建 DOM）
+ * 300ms / ease-standard / text-shift 8px
+ * 旧文案上滑出、新文案上滑入。JS 依据 data-mo-next 生成结构。
+ * ========================================================================== */
+
+.mo-text-swap .mo-swap {
+  position: relative;
+  display: inline-grid;
+  overflow: hidden;
+  line-height: 1.15;
+}
+
+.mo-text-swap .mo-swap > * {
+  grid-area: 1 / 1;
+  transition:
+    transform var(--mo-dur-fast) var(--mo-ease-standard),
+    opacity var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+.mo-text-swap .mo-swap__next {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.mo-text-swap:hover .mo-swap__current,
+.mo-text-swap:focus-visible .mo-swap__current {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.mo-text-swap:hover .mo-swap__next,
+.mo-text-swap:focus-visible .mo-swap__next {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* 箭头随新文案一起进入 */
+.mo-text-swap .mo-ico {
+  transform: translateX(calc(-1 * var(--mo-text-shift)));
+  opacity: 0;
+  transition:
+    transform var(--mo-dur-fast) var(--mo-ease-standard),
+    opacity var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+.mo-text-swap:hover .mo-ico,
+.mo-text-swap:focus-visible .mo-ico { transform: translateX(0); opacity: 1; }
+
+
+/* ============================================================================
+ * PART 16 — Elastic Stretch 弹性拉伸      [04-01]
+ * 400ms / ease-spring / stretch-x 1.12 / stretch-y 0.96
+ * 100% → 112% → 96% → 102% → 100%
+ * ========================================================================== */
+
+/* ============================================================================
+ * PART 16 — Elastic Stretch 弹性拉伸      [03-02]
+ * 蓄力 800ms / 释放 400ms ease-spring / 按住蓄力，到顶自动释放
+ *
+ * 用户要求：**按住的时候可以蓄力，它最多弹这么大，当它到达最大的时候，
+ * 就会自动释放（松手）**。
+ *
+ * 三个阶段的动画原理（anticipation → action → settle）：
+ *   ① 蓄力（按住）：横向**压缩**、纵向鼓起 —— 像把弹簧压紧。压得越久越紧，
+ *      进度由 JS 每帧写入 `--mo-charge`（0..1）。
+ *   ② 释放（到顶自动 / 提前松手）：存住的能量横向**弹射**出去，带过冲与回摆。
+ *      弹射幅度 ∝ 蓄力深度，所以轻点 = 小弹，按满 = 大弹。
+ *   ③ 归位：回摆两下后停在 1×。
+ *
+ * 到顶自动释放：`--mo-charge` 到 1 时 JS 直接调用释放，不等松手。
+ * ========================================================================== */
+
+.mo-elastic-stretch {
+  will-change: transform;
+  /* rest state: exactly the size every other button is */
+  transform: scaleX(1) scaleY(1);
+  /* ⚠️ transform is deliberately NOT transitioned here. During the charge the
+     rAF loop writes `--mo-charge` every frame; a transition on top of that
+     would lag a frame behind and make the squeeze feel rubbery-mushy. */
+  transition:
+    border-color var(--mo-dur-quick) var(--mo-ease-standard),
+    color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+/* 蓄力中：压缩 + 鼓胀，边框转成强调色表示"上膛" */
+.mo-elastic-stretch.is-charging {
+  transform:
+    scaleX(calc(1 - var(--mo-charge, 0) * var(--mo-charge-squash)))
+    scaleY(calc(1 + var(--mo-charge, 0) * var(--mo-charge-bulge)));
+  border-color: var(--mo-accent);
+  color: var(--mo-accent);
+}
+
+/* 释放：横向弹射 + 多次回摆，动能逐渐散失。
+ *
+ * 用户反馈「回弹放慢一些，动能散失更缓一些」——
+ * 旧版是四拍（弹射 → 反向 → 过冲 → 归位），0.4s 内一次摆完就停，
+ * 像被按住又弹开的钢尺，缺少"余振"。
+ * 现在改成**衰减振荡**：每次摆动的幅度按固定比例递减（0.62 倍），
+ * 一共摆五拍，时长拉到 slow(500ms)，读起来像软糖被拉长后自己慢慢稳下来。
+ * 相位与幅度都写成令牌，方便整体调手感。 */
+.mo-elastic-stretch.is-releasing {
+  animation: mo-stretch-fire var(--mo-dur-slow) var(--mo-ease-spring) both;
+}
+
+@keyframes mo-stretch-fire {
+  0% {
+    transform:
+      scaleX(calc(1 - var(--mo-fire-from, 0) * var(--mo-charge-squash)))
+      scaleY(calc(1 + var(--mo-fire-from, 0) * var(--mo-charge-bulge)));
+  }
+  /* the shot: overshoot outward, thin vertically */
+  22% {
+    transform:
+      scaleX(calc(1 + var(--mo-fire-amp, 0.1)))
+      scaleY(calc(1 - var(--mo-fire-amp, 0.1) * 0.62));
+  }
+  /* then a decaying ring-down — each swing is 62% of the one before */
+  42% {
+    transform:
+      scaleX(calc(1 - var(--mo-fire-amp, 0.1) * 0.62))
+      scaleY(calc(1 + var(--mo-fire-amp, 0.1) * 0.38));
+  }
+  60% {
+    transform:
+      scaleX(calc(1 + var(--mo-fire-amp, 0.1) * 0.38))
+      scaleY(calc(1 - var(--mo-fire-amp, 0.1) * 0.24));
+  }
+  76% {
+    transform:
+      scaleX(calc(1 - var(--mo-fire-amp, 0.1) * 0.22))
+      scaleY(calc(1 + var(--mo-fire-amp, 0.1) * 0.14));
+  }
+  89% {
+    transform:
+      scaleX(calc(1 + var(--mo-fire-amp, 0.1) * 0.1))
+      scaleY(calc(1 - var(--mo-fire-amp, 0.1) * 0.06));
+  }
+  100% { transform: scaleX(1) scaleY(1); }
+}
+
+
+/* ============================================================================
+ * PART 17 — Blob Morph 有机形变           [04-02]
+ * 500ms / ease-decel / organic / linear-gradient(135deg, #3B82F6, #60A5FA)
+ * ========================================================================== */
+
+.mo-blob-morph {
+  border-radius: var(--mo-radius);
+  transition:
+    border-radius var(--mo-dur-slow) var(--mo-ease-decel),
+    background var(--mo-dur-slow) var(--mo-ease-decel),
+    color var(--mo-dur-slow) var(--mo-ease-decel),
+    border-color var(--mo-dur-slow) var(--mo-ease-decel),
+    transform var(--mo-dur-slow) var(--mo-ease-decel);
+}
+
+.mo-blob-morph:hover,
+.mo-blob-morph:focus-visible {
+  border-radius: 42% 58% 46% 54% / 55% 45% 55% 45%;
+  background: linear-gradient(135deg, var(--mo-accent), var(--mo-primary-soft));
+  border-color: transparent;
+  color: var(--mo-accent-ink);
+  transform: scale(1.04);
+  animation: mo-blob-breathe 3.2s var(--mo-ease-standard) infinite;
+}
+
+@keyframes mo-blob-breathe {
+  0%   { border-radius: 42% 58% 46% 54% / 55% 45% 55% 45%; }
+  33%  { border-radius: 55% 45% 52% 48% / 42% 58% 42% 58%; }
+  66%  { border-radius: 48% 52% 58% 42% / 58% 42% 55% 45%; }
+  100% { border-radius: 42% 58% 46% 54% / 55% 45% 55% 45%; }
+}
+
+
+/* ============================================================================
+ * PART 18 — Particle Burst 粒子爆发       [04-03]  *需要 JS
+ * 420ms / ease-decel / particles 24 / 三种形状
+ *
+ * 用户：「参考 doki.pretender.asia 的全局点击粒子效果。那是全局触发所以夸张，
+ * 我们这个按钮可以**更简一些**，但**依旧要有惊喜感**」。
+ *
+ * doki 的粒子给我们的启发（见 docs/doki-notes.md）：
+ *   ① 粒子是**不同形状**的（点 / 短线 / 小方块），不是清一色的圆
+ *   ② 有**速度差**（快的先飞出去，慢的跟在后面），所以看着像"炸开"而不是
+ *      "一个圆环均匀扩大"
+ *   ③ 有**拖尾感**（粒子沿运动方向拉长）
+ *   ④ 快速淡出（全局效果可以夸张，按钮上必须干脆）
+ *
+ * 我们做得更简：24 颗、三种形状、两种速度档、420ms 结束。
+ * ========================================================================== */
+
+.mo-particle-burst { position: relative; overflow: visible; }
+
+/* ⚠️ `left/top` are written per-click by `burstParticles` so the burst is
+   centred on the POINTER, not on the button's middle. The 50% here is only a
+   fallback for keyboard/`api.burst()` invocations that carry no coordinates. */
+.mo-particle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mo-accent);
+  opacity: 0;
+  pointer-events: none;
+  /* 沿运动方向拉长 —— 这是"速度感"的来源。`--mo-angle` 由 JS 写入 */
+  transform-origin: center;
+  /* ⚠️ `lazy`(600ms) 与 registry 里登记的令牌一致 —— 之前这里写的是
+     `--mo-dur-base`(400ms)，标签印 600 实际跑 400，违反"标签必须真实"。
+     顺带把时长提上来：粒子飞出去→减速→消散，600ms 才有"惊喜感"，
+     400ms 只是一闪。 */
+  animation: mo-particle-out var(--mo-dur-lazy) var(--mo-ease-settle) forwards;
+  animation-delay: var(--mo-particle-delay, 0ms);
+}
+
+/* 形状二：短线（拉长的胶囊） */
+.mo-particle:nth-child(3n) {
+  width: 8px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--mo-primary-soft);
+}
+
+/* 形状三：小方块 */
+.mo-particle:nth-child(4n) {
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--mo-success);
+}
+
+/* 形状四：细长针状（飞得最远的那一档） */
+.mo-particle:nth-child(7n) {
+  width: 10px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--mo-accent);
+}
+
+@keyframes mo-particle-out {
+  0% {
+    transform:
+      translate(-50%, -50%)
+      rotate(var(--mo-angle, 0deg))
+      translateX(0)
+      scaleX(0.4);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    transform:
+      translate(-50%, -50%)
+      rotate(var(--mo-angle, 0deg))
+      translateX(var(--mo-dist, 40px))
+      scaleX(1)
+      scaleY(0.35);
+    opacity: 0;
+  }
+}
+
+
+/* ============================================================================
+ * PART 19 — 3D Flip 3D 翻转               [04-04]  *需要 JS（自动构建 DOM）
+ * roll · 900ms / ease-settle / rotate-y 180deg / perspective 800px
+ * 结构：button.mo-flip-3d > (fill-blue, fill-green, inner > front/back)
+ *
+ * 用户反馈（任务里标为「重点」）：
+ *   ❌ 鼠标在"触发/不触发"之间来回切换时，卡片会**一直转**，非常不优雅
+ *   ✅ 加**缓动时间**或**冷却时间**
+ *   ✅ 默认态**和普通按钮一样，不填充**
+ *   ✅ 第一次悬停：仿照水流填充，填充成**蓝色**
+ *   ✅ 第二次触发：从**顶部反填充回绿色**
+ *   ✅ 第三次：从**底部反填充回蓝色**……以此交替
+ *   ✅ 复审（2026-09-17）：**仍然太快**，填充与翻转都快，且**两者需要匹配**；
+ *      并强调"**尾部阶段要加载得慢一些**，就像加载进度条最后 90%→100% 那一段"
+ *
+ * ⭐ 关键：**翻转与填充共用同一个时长令牌与同一条缓动**（`--mo-dur-roll` +
+ *    `--mo-ease-settle`）。之前两者各写各的（一个 lazy/decel），节奏不同步，
+ *    读起来像两件事各做各的 —— 用户说的"需要匹配"就是这个。
+ *    现在它们**同时开始、同时结束、同一条长尾曲线**。
+ *
+ * 为什么填充用 `ease-settle`（长尾收束）：填充的语义是"进度"，进度条的最后
+ * 一段本来就该慢慢爬到位（用户点名要的"加载感"）。位移/缩放用长尾会读作卡顿，
+ * 但"填充进度"用长尾恰好正确 —— 缓动要跟语义匹配，不是越慢越好。
+ *
+ * 设计：
+ *   · 默认无填充（`background: transparent`，和别的按钮一样是描边款）
+ *   · 翻转由 **click** 驱动（不是 hover）—— hover 触发正是"来回转"的根源
+ *   · 两个填充层：蓝色从**底部**升，绿色从**顶部**降。第 n 次点击决定哪一层
+ *     出场、以及它的方向，所以"蓝↑ / 绿↓ / 蓝↑ / 绿↓"自然交替
+ *   · 冷却：翻转动画期间不接受新点击（`makeGate`），转完才能再触发
+ * ========================================================================== */
+
+.mo-flip-3d {
+  --mo-flip-angle: 0deg;
+  /* default: NO fill — same resting look as every other button */
+  background: transparent;
+  border-color: var(--mo-ink);
+  color: var(--mo-ink);
+  transform: perspective(var(--mo-perspective)) rotateY(var(--mo-flip-angle));
+  /* 与填充层**同一时长 + 同一缓动** —— 这是"两者匹配"的落地方式 */
+  transition: transform var(--mo-dur-roll) var(--mo-ease-settle);
+  will-change: transform;
+  overflow: hidden;
+}
+
+/* 两个填充层叠在内容下面。初始都在视口外（一上一下），由 JS 决定谁进来。 */
+.mo-flip-3d .mo-flip__fill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transform: translateY(100%);          /* parked below */
+  /* ⚠️ 必须与 `.mo-flip-3d` 的 transform 用**同一个令牌 + 同一条缓动**，
+     否则翻转与填充会各走各的节奏（用户："两者需要匹配"）。 */
+  transition: transform var(--mo-dur-roll) var(--mo-ease-settle);
+}
+
+.mo-flip-3d .mo-flip__fill--blue { background: var(--mo-accent); }
+.mo-flip-3d .mo-flip__fill--green { background: var(--mo-success); }
+
+/* 从底部升上来（蓝） */
+.mo-flip-3d[data-fill='blue'] .mo-flip__fill--blue {
+  transform: translateY(0);
+}
+/* 从顶部降下来（绿） */
+.mo-flip-3d[data-fill='green'] .mo-flip__fill--green {
+  transform: translateY(0);
+}
+
+/* 未使用的那一层推回它出发的方向：蓝层待在底部，绿层待在顶部。
+   没有这条，两层会叠在一起（第二次点击后蓝色还在，绿色又盖上来）。 */
+.mo-flip-3d[data-unused='blue'] .mo-flip__fill--blue {
+  transform: translateY(100%);
+}
+.mo-flip-3d[data-unused='green'] .mo-flip__fill--green {
+  transform: translateY(-100%);
+}
+
+/* 绿层默认停在**顶部**外侧（它是"从上方降下来"的那一层） */
+.mo-flip-3d .mo-flip__fill--green {
+  transform: translateY(-100%);
+}
+
+/* 文字颜色跟着当前填充走，避免蓝底黑字 */
+.mo-flip-3d[data-fill='blue'],
+.mo-flip-3d[data-fill='green'] {
+  border-color: transparent;
+  color: var(--mo-accent-ink);
+}
+
+.mo-flip-3d .mo-flip__inner {
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+  /* ⚠️ 这里**故意不写** `transform-style: preserve-3d`。
+     试过，结果是背面文字整个消失 —— 组合 `.mo-flip-3d` 上的
+     `overflow: hidden`（裁两个填充层用）时，3D 变换后跑到平面外的子层会被
+     直接裁掉（preserve-3d + overflow:hidden 是已知冲突）。
+     这里走的是**扁平化**路线：子层的 `rotateY(180deg)` 退化成 `scaleX(-1)`，
+     正好抵消父级翻转的镜像；再配合 bindFlip 写入的 `data-face` 显式切换正/背面。 */
+}
+
+/* 正/背面共用一层网格位置重叠；back 预旋 180° 抵消按钮旋转 */
+.mo-flip-3d .mo-flip__side {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* ⚠️ 这里**故意不写** `backface-visibility: hidden`。
+     它是经典的 3D 翻牌写法，但在本结构里会把两个字面**同时**藏掉：
+     `.mo-flip__back` 自带 `rotateY(180deg)`，扁平化后仍被判定成"背面朝向"
+     → backface 把它隐藏；而 `data-face="back"` 这一侧又把 front 隐了
+     → 结果一个面都不显示（截图实测：整块纯色、没有文字）。
+     本实现完全用 `data-face` + `visibility` 控制前后面的出场，不用 backface 判定。 */
+}
+
+.mo-flip-3d .mo-flip__back {
+  /* 预旋 180°：扁平化后等价于 `scaleX(-1)`，正好抵消按钮翻转带来的镜像，
+     所以背面文案是正着的。 */
+  transform: rotateY(180deg);
+  /* 默认不可见 —— 由 JS 在翻到侧面的那一刻把 `data-face` 切过去 */
+  visibility: hidden;
+}
+
+/* ⭐ 正/背面切换：JS 在转到侧面时写 `data-face="back"`（见 bindFlip）。
+   为什么不只用 `backface-visibility`：`.mo-flip-3d` 上的 `overflow: hidden`
+   （裁两个填充层用）会把 `transform-style` 强制为 flat，backface 判定不可靠，
+   实测翻到背面时看到的是**镜像的正面文字**，背面文案永远不出现。 */
+.mo-flip-3d[data-face='back'] .mo-flip__front { visibility: hidden; }
+.mo-flip-3d[data-face='back'] .mo-flip__back { visibility: visible; }
+
+
+/* ============================================================================
+ * PART 20 — Cursor Spot 光标互动          [04-05]  *需要 JS
+ * 阻尼跟随 + 光线折射（lens + caustic）
+ * JS 写入 --mo-lx / --mo-ly（**阻尼后**的位置）、--mo-spot-a（运动方向）、
+ *        --mo-spot-v（速度 0..1）、--mo-spot-p（横向占比，驱动文字扫光）
+ *
+ * 用户反馈：「当前是一个淡蓝色的圈，跟随鼠标。我想要**阻尼跟随**以及
+ *            **非线性**，类似于**光线折射**的效果。去掉蓝色/淡蓝色线圈。」
+ *
+ * 这一版做了三件事：
+ *   ① **阻尼跟随**：光点不钉在光标上，而是每帧朝光标 lerp（0.16）。
+ *      它因此**落后一拍再追上来**，停下时缓慢吸附到位 —— 像被拖着的透镜，
+ *      而不是贴着一个图章。
+ *   ② **光线折射**：用一层带 `backdrop-filter` 的**透镜**真实扭曲它下方的
+ *      像素（文字经过时被轻微放大 + 模糊 + 提亮），再叠一层**焦散高光**
+ *      （caustic）—— 真实透镜/水珠会把光聚成**偏心的亮斑**，而不是均匀圆环。
+ *      光斑还会随速度沿运动方向拉长、随方向旋转。
+ *   ③ **去蓝**：旧版有一圈 `rgb(59 130 246 / 0.42)` 的淡蓝环（就是用户说的
+ *      "淡蓝色的圈"），已删除。现在只有中性白高光 + 极轻的暖色色散边。
+ * ========================================================================== */
+
+.mo-cursor-spot {
+  overflow: hidden;
+  /* 悬停时边框用墨色而不是强调蓝 —— 用户明确不要蓝色圈 */
+  transition: border-color var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+/* 光点本体：一个被 JS 阻尼驱动的小透镜 */
+.mo-cursor-spot > .mo-spot {
+  position: absolute;
+  left: var(--mo-lx, 50%);
+  top: var(--mo-ly, 50%);
+  z-index: 2;
+  width: calc(46px + var(--mo-spot-v, 0) * 26px);
+  height: calc(46px + var(--mo-spot-v, 0) * 16px);
+  pointer-events: none;
+  /* centre on the damped point, then stretch along the direction of travel:
+     rotate first so scaleX lengthens the light in the direction it is moving */
+  transform:
+    translate(-50%, -50%)
+    rotate(var(--mo-spot-a, 0deg))
+    scale(1, calc(1 - var(--mo-spot-v, 0) * 0.22));
+  opacity: 0;
+  transition: opacity var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+/* 层1：折射透镜 —— 真的扭曲下方像素，这是"光线折射"的来源。
+   ⚠️ 它必须盖在文字**上面**（z-index 2 > label 的 1），否则 backdrop-filter
+   只能滤到按钮底色，滤不到文字，就没有"隔着玻璃看字"的感觉。
+   ⚠️ 模糊要**轻**（0.9px）而亮度提**足**（1.16）。第一版用 1.6px 模糊，
+   结果文字被糊成一团，看着像污渍而不是透镜 —— 透镜应当让字**更亮更清**，
+   只有边缘轻微发散。 */
+.mo-cursor-spot > .mo-spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  -webkit-backdrop-filter: blur(0.9px) brightness(1.16) contrast(1.04);
+  backdrop-filter: blur(0.9px) brightness(1.16) contrast(1.04);
+  /* soft-edged so the lens has no hard rim (a hard rim reads as a "ring") */
+  -webkit-mask: radial-gradient(circle at 50% 50%, #000 0%, #000 46%, transparent 72%);
+  mask: radial-gradient(circle at 50% 50%, #000 0%, #000 46%, transparent 72%);
+}
+
+/* 层2：焦散高光 —— 偏心亮斑 + 极轻的暖色色散边。
+   真实的透镜/水珠把光聚成一个**偏离中心**的亮点，而不是均匀的环。
+   ⚠️ 混合模式用 `normal` 而不是 `screen`：本站纸色是冷灰蓝（#f5f7fa），
+   `screen` 会把底色里的蓝一起提亮，于是整个光斑看起来发蓝 —— 用户说的
+   "淡蓝色的圈"有一半是这个原因，不是高光本身有色。 */
+.mo-cursor-spot > .mo-spot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    /* the caustic core, pushed toward the leading edge */
+    radial-gradient(
+      circle at 58% 36%,
+      rgb(255 255 255 / 1),
+      rgb(255 255 255 / 0.72) 18%,
+      rgb(255 255 255 / 0.22) 42%,
+      transparent 64%
+    ),
+    /* a warm dispersion fringe on the trailing side — refraction, not a ring */
+    radial-gradient(
+      circle at 32% 68%,
+      rgb(255 240 214 / 0.72),
+      transparent 40%
+    );
+  filter: blur(0.3px);
+  /* no mix-blend-mode: keep the light neutral over the cool paper */
+}
+
+.mo-cursor-spot:hover { border-color: var(--mo-ink); }
+
+.mo-cursor-spot:hover > .mo-spot,
+.mo-cursor-spot:focus-visible > .mo-spot { opacity: 1; }
+
+/* 层3：文字 —— 一条跟随指针的窄亮带（`--mo-spot-p`），鼠标划过时字面反光。
+   点击时的"整块扫光"由 `.mo-gloss` 负责（它盖在文字上方，会一并带亮字）。
+   ⚠️ 渐变必须在带外带 `currentColor`。`background-clip: text` 下填充就是字本身，
+   透明的色标会**把字擦掉** —— 亮带只能叠在墨色**之上**，不能取代它。 */
+.mo-cursor-spot > .mo-label {
+  position: relative;
+  z-index: 1;
+  background-image: linear-gradient(
+    100deg,
+    currentColor 0%,
+    currentColor 42%,
+    rgb(255 255 255 / 0.98) 50%,
+    currentColor 58%,
+    currentColor 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  /* the band's position follows the pointer across the button, so it sweeps
+     WITH the cursor instead of looping on a timer */
+  background-position: var(--mo-spot-p, 50%) 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: background-position 90ms linear;
+}
+
+/* 层4：点击光泽 —— **整块**被一道斜向柔光扫过，方向左 → 右。
+   用户：「扫过时文字没有高光」「整块扫过」「左到右，柔和一些」。
+
+   要点：
+   · 带子**足够宽**（约按钮宽的 55%）+ 大模糊，让整块是"被光拂过"而不是
+     被一根硬条切过 —— 窄条会读成"有条线在走"，宽柔光才是"光泽过渡"。
+   · 峰值不用拉满（0.85），因为覆盖面大，太亮会整块发白。
+   · 起止都在按钮**外侧**（-60% → 200%），所以光是从左边进来、右边出去，
+     而不是在按钮内部凭空出现又消失。
+   · 时长 `glacial · 800ms`（用户确认），缓动 `ease-draw`（慢→快→慢收尾）。
+   ⚠️ 用 `plus-lighter` 而不是 `screen`：只做加法，不会把本站冷灰蓝的底色
+   一起放大（透镜那里踩过一次）。 */
+.mo-cursor-spot > .mo-gloss {
+  position: absolute;
+  top: -55%;
+  bottom: -55%;
+  left: 0;
+  width: 62%;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.13) 24%,
+    rgb(255 255 255 / 0.46) 43%,
+    rgb(255 255 255 / 0.72) 52%,
+    rgb(255 255 255 / 0.46) 61%,
+    rgb(255 255 255 / 0.13) 80%,
+    transparent 100%
+  );
+  /* Start just off the left edge and finish just off the right, so the band is
+     INSIDE the button for most of the timeline. The first version travelled
+     -160% → 200% (≈280px for a 140px button), so it only overlapped the button
+     for ~200ms of the 800ms — that is what made it feel fast despite the long
+     duration. */
+  transform: translateX(-100%) skewX(-16deg);
+  opacity: 0;
+  /* a wide soft edge is what makes it read as light, not as a bar */
+  filter: blur(7px);
+  mix-blend-mode: plus-lighter;
+}
+
+.mo-cursor-spot.is-glinting > .mo-gloss {
+  /* ease-standard rather than ease-draw: the draw curve sprints through the
+     middle, which shot the band across the button. A standard ease keeps the
+     travel even, which is what "柔和" needs. */
+  animation: mo-gloss-sweep var(--mo-dur-glacial) var(--mo-ease-standard) both;
+}
+
+@keyframes mo-gloss-sweep {
+  0% {
+    transform: translateX(-100%) skewX(-16deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    /* just past the right edge — the light enters and exits */
+    transform: translateX(165%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+/* ============================================================================
+   PART 8 — 语义化按钮类型                        [新增：触发型 vs 状态型]
+   ---------------------------------------------------------------------------
+   之前全站只有「按压缩放」这一种交互反馈，于是所有按钮按下后都亮一下、
+   并且亮的状态是**粘住**的。这在「暂停」这种状态按钮上是对的，在
+   「重播」「换一种光」这种触发按钮上就是错的 —— 用户看到的是一个
+   亮着的按钮，无法判断它是「现在处于这个状态」还是「刚刚被按过」。
+
+   两种类型的区别不在视觉强度，在**状态会不会粘住**：
+     .mo-roll    触发型。按下亮、松手复原，不保留任何状态。
+     .mo-toggle  状态型。[data-on="true"] 时保持亮，一眼可读。
+   ========================================================================== */
+
+/* ---- 触发型：像扭蛋机的按钮，按一下就掉一个结果 ---- */
+
+.mo-roll {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform var(--mo-dur-instant) var(--mo-ease-standard),
+    box-shadow var(--mo-dur-instant) var(--mo-ease-standard),
+    background-color var(--mo-dur-quick) var(--mo-ease-standard),
+    border-color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+/* A ring of light sweeps out from where the finger went down. It reads as
+   "this fired" rather than "this is now on", because it leaves nothing
+   behind — there is no persistent state to confuse. */
+.mo-roll::after {
+  content: '';
+  position: absolute;
+  left: var(--mo-roll-x, 50%);
+  top: var(--mo-roll-y, 50%);
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--mo-accent) 42%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  scale: 1;
+}
+
+.mo-roll:active {
+  transform: scale(var(--mo-scale-press));
+  box-shadow: var(--mo-shadow-press);
+  border-color: var(--mo-accent);
+}
+
+.mo-roll:active::after {
+  opacity: 1;
+  animation: mo-roll-wave 620ms var(--mo-ease-settle) forwards;
+}
+
+@keyframes mo-roll-wave {
+  from {
+    scale: 1;
+    opacity: 0.9;
+  }
+  to {
+    /* Travels far enough to clear the button, then goes. The last 30% of the
+       duration carries almost no scale change — a ring that keeps growing
+       linearly reads as a slow ring, not as a struck one. */
+    scale: 26;
+    opacity: 0;
+  }
+}
+
+/* ---- 状态型：亮着就是开着 ---- */
+
+.mo-toggle {
+  transition:
+    transform var(--mo-dur-instant) var(--mo-ease-standard),
+    background-color var(--mo-dur-quick) var(--mo-ease-standard),
+    border-color var(--mo-dur-quick) var(--mo-ease-standard),
+    color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+.mo-toggle:active {
+  transform: scale(var(--mo-scale-press));
+}
+
+.mo-toggle[data-on='true'] {
+  background: var(--mo-primary);
+  border-color: var(--mo-primary);
+  color: var(--mo-primary-ink);
+  box-shadow: var(--mo-shadow-lift);
+}
