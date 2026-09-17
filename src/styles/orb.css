@@ -1,0 +1,615 @@
+/* ============================================================================
+ * HERO ORB — 触摸端的「虚拟指针光球」（视觉层）
+ * ----------------------------------------------------------------------------
+ * 桌面端没有这个球：它替代的就是鼠标指针本身（触摸设备没有 hover 这个动作）。
+ * 启用条件见 src/shell/HeroOrb.tsx —— ?vp=1 / ?vp=0 / localStorage / UA 判定。
+ *
+ * 材质语言取自 src/motion/motion.buttons.css 的 PART 20（Cursor Spot 折射透镜）：
+ * 桌面那枚"跟随光标的透镜"在触摸端变成"可以拖走的透镜"，
+ * 是同一个视觉签名跨设备的呼应，而不是两套不相干的东西。
+ *
+ * ⚠️ 三条硬约束（项目里都踩过，别改回去）
+ *   1. 模糊要**轻**（默认 blur 1px）。试过 1.6px：字被糊成一团污渍，像镜头脏了。
+ *      透镜该让字**更亮更清**，只有边缘轻微发散。
+ *   2. 不要 `mix-blend-mode: screen`、不要 `saturate()`。本站纸色是冷灰蓝（#f5f7fa），
+ *      这两种混合会把底色里的蓝一起放大 —— 用户当时抱怨的"淡蓝色的圈"有一半是这个原因。
+ *   3. 不引入额外的蓝：球是中性的白 + 极淡暖高光。验收时不要问"这个像素是不是蓝的"
+ *      （纸本身就蓝），要问**"球比它周围同一块纸更蓝吗"**。
+ *
+ * 参数来源：本文件顶部一组 --orb-* 令牌（球专属，不进 :root，免得污染全站）；
+ *          时长/缓动一律复用 src/motion/motion.tokens.css 的 --mo-* 阶梯。
+ *
+ * ⚠️ 下一轮（物理轮）的接法：位置/尺寸/拉伸将由 JS 每帧写 inline style，
+ *    届时**不能**再让 transition 参与这些属性（每帧驱动 + transition = 永远慢一截，
+ *    进度条那次就是这么栽的）。transition 只保留给"档位切换"这类非每帧变化。
+ * ========================================================================== */
+
+.hero-orb {
+  /* --- 尺寸：档位基准 × 状态倍率 ------------------------------------- */
+  --orb-base-d: 34px;   /* SIZE 档：30 / 34 / 40 */
+  --orb-state-d: 1;     /* 状态倍率，见下方 [data-state]（数值取自 §4.2） */
+  --orb-zoom: 1;        /* 仅 Lab 的 3× 解剖球用 */
+
+  /* --- 形变：拖拽/惯性时沿运动方向拉长 --------------------------------- */
+  --orb-stretch: 1;     /* ≤1.12（一滴被手指带起来的水） */
+  --orb-squash: 1;      /* 垂直略收，读作体积守恒而不是"被压扁" */
+  --orb-angle: 0deg;    /* 运动方向 */
+
+  /* --- 透镜（LENS 档） -------------------------------------------------- */
+  --orb-lens-blur: 1px;
+  /* gain 与叠层透明度读 :root 的令牌（深色模式才翻得动）；三档之间的关系
+     用 --orb-lens-gain-mult 表达，不用绝对值。 */
+
+  /* --- 不透明度：待机档位，其余状态各自固定 ---------------------------- */
+  --orb-idle-alpha: 0.5;
+  --orb-alpha: var(--orb-idle-alpha);
+
+  /* --- 焦散强度与"被拿起来"时的提亮 ----------------------------------- */
+  --orb-caustic: 0.92;
+  --orb-lift: 1;
+
+  /* --- 呼吸（首次出现的一次性提示） ----------------------------------- */
+  --orb-breathe-amp: 1.06;
+
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3; /* > .hero__inner 的 2：透镜必须滤到**字**，不是只滤到背景 */
+
+  width: calc(var(--orb-base-d) * var(--orb-state-d));
+  height: calc(var(--orb-base-d) * var(--orb-state-d));
+  margin-left: calc(var(--orb-base-d) * var(--orb-state-d) / -2);
+  margin-top: calc(var(--orb-base-d) * var(--orb-state-d) / -2);
+  transform:
+    rotate(var(--orb-angle))
+    scale(calc(var(--orb-stretch) * var(--orb-zoom)), calc(var(--orb-squash) * var(--orb-zoom)));
+
+  opacity: var(--orb-alpha);
+  /* 本轮只做视觉：球不吃事件（点击仍归页面，见 §7「不接管点击」） */
+  pointer-events: none;
+  transition:
+    width var(--mo-dur-base) var(--mo-ease-standard),
+    height var(--mo-dur-base) var(--mo-ease-standard),
+    margin var(--mo-dur-base) var(--mo-ease-standard),
+    transform var(--mo-dur-base) var(--mo-ease-standard),
+    /* 变淡是在表达"它现在安静了"，不是"它消失了" → 慢一档、不突兀 */
+    opacity var(--mo-orb-settle) var(--mo-ease-standard);
+}
+
+/* ---------- 尺寸档（Lab 用；正式形态只走 std） ---------- */
+.hero-orb[data-size='sm'] { --orb-base-d: 30px; }
+.hero-orb[data-size='std'] { --orb-base-d: 34px; }
+.hero-orb[data-size='lg'] { --orb-base-d: 40px; }
+
+/* ---------- 可拖的球才吃事件 ----------
+   默认 `pointer-events: none`：球不许接管**点击**（§7）——用户想点哪儿就点哪儿。
+   只有能拖的那一颗把事件收回来，且只收拖拽。 */
+.hero-orb[data-interactive='1'] {
+  pointer-events: auto;
+  cursor: grab;
+  /* 触摸端必须加这条：不然手指拖动会被浏览器的滚动抢走，球拖不动、页面在滚。 */
+  touch-action: none;
+}
+
+.hero-orb[data-interactive='1']:active { cursor: grabbing; }
+
+/* 还没启用：停在左上角等一次点击/拖走 —— 光标提示它可点。
+   触摸端没有 hover，所以"入场呼吸 + 点一下发光"就是"它是活的、能点"的全部契约。 */
+.hero-orb[data-armed='1'][data-interactive='1'] { cursor: pointer; }
+
+/* ---------- 每帧由 JS 驱动的形变不能走 transition ----------
+   否则形变永远慢一截（Progress 的 width transition 就是这么栽的，见项目记忆）。
+   位置 left/top 本来就不在 transition 列表里；这里把 transform 也摘出去，
+   只保留"档位/状态切换"才需要的宽高、外边距、透明度。 */
+.hero-orb[data-live='1'] {
+  transition-property: width, height, margin, opacity;
+}
+
+/* ---------- 透镜档 ---------- */
+/* Three lens grades. The gain is a *multiplier* on the themed base rather
+   than a fixed number: an absolute value here silently overrode the dark
+   theme's 1.5 and put the sphere back to reading as grey dust. The three
+   grades stay in the same relationship to each other in both themes. */
+.hero-orb[data-lens='soft'] { --orb-lens-blur: 0.6px; --orb-lens-gain-mult: 0.96; }
+.hero-orb[data-lens='std'] { --orb-lens-blur: 1px; --orb-lens-gain-mult: 1; }
+.hero-orb[data-lens='crisp'] { --orb-lens-blur: 1.4px; --orb-lens-gain-mult: 1.04; }
+
+/* ---------- 待机不透明度档 ---------- */
+.hero-orb[data-alpha='low'] { --orb-idle-alpha: 0.38; }
+.hero-orb[data-alpha='std'] { --orb-idle-alpha: 0.5; }
+.hero-orb[data-alpha='high'] { --orb-idle-alpha: 0.62; }
+
+/* ---------- 焦散档 ---------- */
+.hero-orb[data-caustic='soft'] { --orb-caustic: 0.68; }
+.hero-orb[data-caustic='std'] { --orb-caustic: 0.92; }
+.hero-orb[data-caustic='hard'] { --orb-caustic: 1.15; }
+
+/* ============================================================================
+ * 状态 —— docs/handoff-hero-orb.md §4.2 定稿表，数值不要自行发散
+ * ========================================================================== */
+.hero-orb[data-state='idle'] {
+  --orb-state-d: 1; /* 34px */
+  --orb-alpha: var(--orb-idle-alpha);
+}
+
+.hero-orb[data-state='hint'] {
+  --orb-state-d: 1; /* 34px */
+  --orb-alpha: 0.7;
+}
+
+.hero-orb[data-state='grab'] {
+  --orb-state-d: 1.118; /* 38px */
+  --orb-alpha: 0.85;
+  --orb-lift: 1.25; /* 球体提亮 + 投影加深 = "被拿起来了" */
+}
+
+.hero-orb[data-state='drag'] {
+  --orb-state-d: 1.176; /* 40px */
+  --orb-alpha: 0.95;
+  --orb-stretch: 1.12;
+  --orb-squash: 0.958;
+  --orb-lift: 1.3;
+}
+
+.hero-orb[data-state='glide'] {
+  --orb-state-d: 1.059; /* 36px */
+  --orb-alpha: 0.78;
+  --orb-stretch: 1.08; /* 真实值随速度，本层只给静态演示档 */
+  --orb-squash: 0.972;
+  --orb-lift: 1.12;
+}
+
+/* ============================================================================
+ * 分层 —— body(呼吸/投影) > lens(折射) + caustic(焦散) + rim(边缘光)
+ * 分三层而不是一个元素堆 :hover 伪元素，是为了让物理轮能独立驱动形变，
+ * 不必和材质挤在同一个 transform 上。
+ * ========================================================================== */
+.hero-orb__body {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* 微弱投影：outset 阴影跟随 border-box 的圆角，不依赖背景是否透明
+     （用 filter: drop-shadow 会失败 —— rim 层大部分是透明的，投影会变成一圈弧） */
+  box-shadow: 0 5px 12px -2px rgb(0 0 0 / var(--orb-shadow, 0.14));
+  transition: box-shadow var(--mo-dur-base) var(--mo-ease-standard);
+}
+
+.hero-orb[data-state='grab'] .hero-orb__body,
+.hero-orb[data-state='drag'] .hero-orb__body {
+  box-shadow: 0 8px 18px -3px rgb(0 0 0 / var(--orb-shadow-2, 0.24));
+}
+
+/* 首次出现：一次轻微呼吸，提示"它是活的"，之后回落待机 */
+.hero-orb[data-state='hint'] .hero-orb__body {
+  animation: orb-breathe var(--mo-orb-breathe) var(--mo-ease-standard) 1 both;
+}
+
+/* Lab 专用：样本要能反复看，所以循环 */
+.hero-orb[data-state='hint'][data-loop] .hero-orb__body {
+  animation-iteration-count: infinite;
+}
+
+@keyframes orb-breathe {
+  0% { transform: scale(1); }
+  50% { transform: scale(var(--orb-breathe-amp)); }
+  100% { transform: scale(1); }
+}
+
+/* 层1 · 折射透镜：真的扭曲它下方的像素，这是"它是光不是贴纸"的关键。
+   ⚠️ mask 只柔化最外 8%。第一版照 Cursor Spot 用了 46%→72% 的长软收，
+   结果球的边界整个消失 —— 在浅纸上读作"一团白雾"，不是玻璃球（截图为证）。
+   透镜需要软边，但**球需要边界**：边界由这一层的边缘环 + rim 层一起给。 */
+.hero-orb__lens {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  -webkit-backdrop-filter: blur(var(--orb-lens-blur)) brightness(calc(var(--orb-lens-gain) * var(--orb-lens-gain-mult, 1))) contrast(1.04);
+  backdrop-filter: blur(var(--orb-lens-blur)) brightness(calc(var(--orb-lens-gain) * var(--orb-lens-gain-mult, 1))) contrast(1.04);
+  -webkit-mask: radial-gradient(circle at 50% 50%, #000 0%, #000 90%, transparent 100%);
+  mask: radial-gradient(circle at 50% 50%, #000 0%, #000 90%, transparent 100%);
+  /* pearl：中心近白半透明 → 边缘略暗（§4.1 原方案） */
+  background: radial-gradient(
+    circle at 50% 46%,
+    rgb(255 255 255 / var(--orb-lens-hi, 0.15)) 0%,
+    rgb(255 255 255 / var(--orb-lens-hi-mid, 0.1)) 44%,
+    rgb(255 255 255 / var(--orb-lens-hi-low, 0.05)) 68%,
+    rgb(0 0 0 / var(--orb-edge-dark, 0.08)) 88%,
+    rgb(0 0 0 / var(--orb-edge-dark-2, 0.17)) 100%
+  );
+}
+
+/* 层2 · 焦散：真实的透镜/水珠把光聚成**偏心**亮斑，不是均匀圆环。
+   混合模式保持 normal —— `screen` 会把纸色里的蓝一起提亮（PART 20 的老账）。 */
+.hero-orb__caustic {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  opacity: calc(var(--orb-caustic) * var(--orb-lift));
+  background:
+    radial-gradient(
+      circle at 58% 36%,
+      rgb(255 255 255 / 0.95),
+      rgb(255 255 255 / 0.6) 15%,
+      rgb(255 255 255 / 0.17) 40%,
+      transparent 62%
+    ),
+    /* 背光侧一道极淡的暖色色散边 —— 是折射，不是描边 */
+    radial-gradient(circle at 32% 68%, rgb(255 243 222 / 0.6), transparent 42%);
+  filter: blur(0.4px);
+  transition: opacity var(--mo-dur-base) var(--mo-ease-standard);
+}
+
+/* 层3 · 边缘光：1px 高光弧，左上亮、右下暗（玻璃球被光照到的那一侧）。
+   用 inset shadow 的偏移天然产生月牙弧，比 conic-gradient 描边稳。 */
+.hero-orb__rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow:
+    inset 1.5px 1.5px 2px rgb(255 255 255 / 0.92),
+    inset -1.5px -1.5px 2.5px rgb(0 0 0 / 0.1);
+}
+
+/* 层4 · 启用那一瞬间的"小小的发光"：一圈很细的光环扩散、淡出。
+   它是"我点到了"的回执 —— 做大做久就变成特效表演，而不是回应。 */
+.hero-orb__flash {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgb(255 255 255 / 0.95);
+  box-shadow: 0 0 10px 1px rgb(255 255 255 / 0.5);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hero-orb[data-flash='1'] .hero-orb__flash {
+  animation: orb-flash-ring var(--mo-dur-glacial) var(--mo-ease-decel) 1 both;
+}
+
+@keyframes orb-flash-ring {
+  0% { transform: scale(0.9); opacity: 0.95; }
+  55% { opacity: 0.5; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* ============================================================================
+ * 材质方向（MAT — 三档，只在 Lab 里切换；正式形态用 lens）
+ * ----------------------------------------------------------------------------
+ * ⚠️ 第一版照 §4.1 做出来是 **pearl**：中心近白半透明 → 边缘略暗。
+ *    36px 放大四倍看，它读作"一颗白球 / 一枚珍珠"，不像光 —— 因为
+ *    **球心与边缘一样亮**，没有"玻璃"的读法。玻璃球的读法恰好相反：
+ *      中心几乎全透（只是另一扇窗）→ 边缘一圈全反射亮环 → 最外沿一条极细暗线（轮廓）
+ *    所以把材质拆成三档摆在桌面上比，而不是替用户决定。
+ * ========================================================================== */
+
+/* --- pearl：交接文档原方案。实心、柔和、像磨砂玻璃珠 --- */
+/* （默认值即 pearl，见文件顶部的 --orb-caustic / 各层 radial-gradient） */
+
+/* --- lens：光学透镜。中心全透，靠 backdrop 的 blur+brightness 说话，
+       边缘一圈**全反射亮环** + 最外沿一条极细暗线（轮廓）。
+       字从中间穿过时是"被玻璃挡了一下"，而不是"被一颗白球盖住"。
+       ⚠️ 环的位置必须落在 mask 的有效区内（<90% 全强度），否则又被剪掉。 --- */
+.hero-orb[data-mat='lens'] .hero-orb__lens {
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0%,
+    transparent 34%,
+    rgb(255 255 255 / 0.1) 52%,
+    rgb(255 255 255 / 0.34) 70%,
+    rgb(255 255 255 / 0.72) 85%,
+    rgb(255 255 255 / 0.94) 95%,
+    rgb(20 24 31 / 0.26) 100%
+  );
+}
+
+/* 亮环已经由上面那层给了，rim 这里的作用是**把边缘光做实**：
+   34px 的球上，径向渐变的环只有 1–2px，太容易读丢；inset 阴影的月牙弧
+   可以做得又宽又稳。左上强高光 + 右下暗弧 = 玻璃球被光打到的那一侧。 */
+.hero-orb[data-mat='lens'] .hero-orb__rim,
+.hero-orb[data-mat='droplet'] .hero-orb__rim {
+  box-shadow:
+    inset 2px 2px 2.5px rgb(255 255 255 / 0.85),
+    inset -1px -1px 1.5px rgb(20 24 31 / 0.12);
+}
+
+/* 焦散收小、收紧：玻璃球的高光是**一点**，不是一片。偏心保留（58% 36%） */
+.hero-orb[data-mat='lens'] .hero-orb__caustic {
+  background:
+    radial-gradient(
+      circle at 58% 36%,
+      rgb(255 255 255 / 0.92) 0%,
+      rgb(255 255 255 / 0.42) 9%,
+      rgb(255 255 255 / 0.1) 22%,
+      transparent 40%
+    ),
+    radial-gradient(circle at 30% 70%, rgb(255 244 226 / 0.5), transparent 32%);
+}
+
+/* --- droplet：再往"水"走一步。顶上一粒锐高光、底下一小片聚光斑
+       （真实水珠把光聚在下方），冷暖各一道极淡色散边。 --- */
+.hero-orb[data-mat='droplet'] .hero-orb__lens {
+  background: radial-gradient(
+    circle at 50% 50%,
+    transparent 0%,
+    transparent 32%,
+    rgb(255 255 255 / 0.12) 50%,
+    rgb(255 255 255 / 0.4) 68%,
+    rgb(255 255 255 / 0.78) 84%,
+    rgb(255 255 255 / 1) 95%,
+    rgb(20 24 31 / 0.28) 100%
+  );
+}
+
+.hero-orb[data-mat='droplet'] .hero-orb__caustic {
+  background:
+    /* 锐高光：小、亮、偏左上 */
+    radial-gradient(circle at 38% 26%, rgb(255 255 255 / 0.98) 0%, rgb(255 255 255 / 0.5) 7%, transparent 17%),
+    /* 底部聚光斑：水珠把光聚到下面一小片 */
+    radial-gradient(circle at 50% 95%, rgb(255 255 255 / 0.55), transparent 26%),
+    /* 冷暖色散：一暖一冷，极淡 */
+    radial-gradient(circle at 26% 74%, rgb(255 240 214 / 0.5), transparent 32%),
+    radial-gradient(circle at 74% 30%, rgb(222 238 255 / 0.32), transparent 30%);
+}
+
+
+/* ============================================================================
+ * Lab 模式（?vp=1&orb=lab）的底部档位条
+ * ----------------------------------------------------------------------------
+ * ⚠️ 刻意**不**在页面上摆一排静止的状态样本，也不放放大的解剖球 —— 两种都试过，
+ *    读起来是"几个图标印在页面上"，恰好把这个功能的本质（它在动）抹掉了。
+ *    状态在拖它的时候自己会全部出现；材质靠"把球停在字上"看。
+ * ========================================================================== */
+
+/* ---------- 底部档位条 ---------- */
+.orb-tuner {
+  position: fixed;
+  left: 14px;
+  /* 必须与收起态的 `.orb-dock` 同 top —— 菜单是"从那条横杠里长出来"的，
+     两者错开就会出现「点一下 → 面板从一个空位置冒出来」的断裂感。
+     （这个值跟着 defaultBarPos 走：框沿 57 - 横杠高 14 - 间距 1 = 42） */
+  top: 42px;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 18px;
+  max-width: min(680px, calc(100vw - 28px));
+  padding: 11px 14px 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper-lift) 94%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 34px -16px rgb(0 0 0 / 0.42);
+  font-family: var(--font-mono);
+  /* 展开/收起都围绕左上角那条小横杠 —— 视觉上就是"从横杠里长出来 / 缩回横杠" */
+  transform-origin: left top;
+  transition:
+    transform var(--mo-dur-base) var(--mo-ease-spring),
+    opacity var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+.orb-tuner[data-open='0'] {
+  transform: scale(0.14) translate(-4px, -4px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.orb-tuner__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+}
+
+.orb-tuner__k {
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  color: var(--ink-faint);
+}
+
+/* ---------- 那条小横杠（收起态 / 菜单里的最小化按钮，同一个东西） ----------
+   材质跟着球走：半透明 + 折射 + 一道顶部内高光 + 落在纸上的淡影。
+   球是"一颗可以拖着走的透镜"，这个按钮就是同一块玻璃做的小薄片。
+   ⚠️ 依旧不用 saturate / screen —— 本站纸色是冷灰蓝，那两种混合会把蓝放大。 */
+.orb-bar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  border-radius: 7px;
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.38) 0%,
+    rgb(255 255 255 / 0.16) 52%,
+    rgb(255 255 255 / 0.1) 100%
+  );
+  -webkit-backdrop-filter: blur(7px) brightness(1.05);
+  backdrop-filter: blur(7px) brightness(1.05);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    inset 0 -1px 1px rgb(0 0 0 / 0.05),
+    0 3px 8px -4px rgb(0 0 0 / 0.34);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    opacity var(--mo-dur-quick) var(--mo-ease-standard),
+    transform var(--mo-dur-quick) var(--mo-ease-standard),
+    border-color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+/* 那一条横杠本身 */
+.orb-bar::before {
+  content: '';
+  width: 11px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.3);
+  transition: background-color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+/* 首次访问的泛光：一圈很柔的光晕在慢慢呼吸，唯一的任务是勾人点一下。
+   ⚠️ 周期必须慢（4.2s）。快闪读起来是"有东西坏了 / 出错了"，不是"来点我"。 */
+.orb-bar::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 13px;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 255 255 / 0.9),
+    rgb(255 255 255 / 0.28) 58%,
+    transparent 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+}
+
+.orb-bar[data-tip='1']::after {
+  animation: orb-bar-glow 4.2s var(--mo-ease-standard) infinite;
+}
+
+@keyframes orb-bar-glow {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  38% {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+}
+
+.orb-bar:hover { border-color: rgb(255 255 255 / 0.85); }
+.orb-bar:hover::before { background: var(--ink); }
+
+/* 收起态的横杠：fixed 定位，left/top 由 JS 写（见 HeroOrb.tsx defaultBarPos）。
+   这里的默认值是**兜底**，防止 JS 执行前闪一下旧位置 —— 必须和 JS 算出来的
+   42px 保持一致（= 标志底边 41 + 1，也等于 .hero 上沿 57 - 横杠高 14 - 1）。
+   也就是那条「标志之下、框沿之上」的 16px 窄缝。
+   ⚠️ 别再用「.site-head 下沿 + N」：实测那个下沿正好等于 .hero 的上沿，
+   加任何正数都会让横杠掉进交互框里（用户 2026-09-17 两次截图指出）。
+   **长按它可以拖到任何地方**，位置记在 localStorage。 */
+.orb-dock {
+  position: fixed;
+  left: 14px;
+  top: 42px;
+  z-index: 61;
+  transition-delay: 240ms; /* 出现要等菜单缩回去 */
+  /* 长按拖拽必须吃掉指针手势，否则触摸端会被浏览器当成滚动/长按选择 */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.orb-dock[data-hidden='1'] {
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
+  transition-delay: 0ms; /* 消失要立刻，否则和展开的面板叠在一起 */
+}
+
+/* 长按超过阈值 = 进入"挪位置"：放大一点、描白边、投影加深，读作"拿起来了" */
+.orb-dock[data-drag='1'] {
+  cursor: grabbing;
+  transform: scale(1.3);
+  border-color: rgb(255 255 255 / 0.95);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    0 10px 22px -8px rgb(0 0 0 / 0.55);
+  transition-delay: 0ms;
+}
+
+.orb-group {
+  display: grid;
+  gap: 5px;
+}
+
+.orb-group__k {
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+}
+
+.orb-group__opts {
+  display: flex;
+  gap: 5px;
+}
+
+.orb-opt {
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  transition:
+    border-color var(--mo-dur-quick) var(--mo-ease-standard),
+    color var(--mo-dur-quick) var(--mo-ease-standard),
+    background-color var(--mo-dur-quick) var(--mo-ease-standard);
+}
+
+.orb-opt:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.orb-opt[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.orb-tuner__note {
+  width: 100%;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+/* ============================================================================
+ * 触摸端兜底：球**被启用之后**，在它能游走的这个范围内禁掉"选中"与"长按"
+ * ----------------------------------------------------------------------------
+ * 用户 2026-09-17 要求：触摸端那行大字能被选中，要禁掉。
+ * 长按大字会拉起选择手柄 + 系统菜单（拷贝 / 查询），**直接盖住拖拽**，
+ * 而那一层我们完全接管不了 —— 唯一的办法是不让它发生。
+ * 顺带禁掉 iOS 的长按菜单与点按高亮。
+ *
+ * ⚠️ 条件不是"有没有球"，而是"**球启用没启用**"（用户 2026-09-17 纠正）：
+ *    球还在待命（`data-armed='1'`，停在左上角等一次点击）时，选字能力应当照旧；
+ *    只有真的启用了它 —— 也就是要开始拖拽了 —— 才需要禁掉。
+ *    桌面端没有球时，这一整块都不匹配，行为一点不动。
+ * ========================================================================== */
+.hero:has(.hero-orb:not([data-armed='1'])) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================================================
+ * 无障碍：reduce 只**减少位移**，不让东西整个消失
+ * ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb {
+    --orb-breathe-amp: 1;
+  }
+
+  .hero-orb[data-state='drag'],
+  .hero-orb[data-state='glide'] {
+    --orb-stretch: 1;
+    --orb-squash: 1;
+  }
+}
