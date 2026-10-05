@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.34",
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0 || >=22.12.0"
+  },
   "description": "SOFT LAB — 数字物质标本馆. An index of digital matter.",
   "homepage": "https://doit.loc.cc/",
   "license": "MIT",

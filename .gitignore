@@ -55,3 +55,9 @@ dev*.log
 #  ⚠️ 写两行是有原因的：`/docs/*.md` 只挡第一层，不挡子目录。
 /docs/*.md
 /docs/**/*.md
+
+# ---- filter-branch / 历史重写的临时目录（绝不能进仓库）----
+.git-rewrite/
+
+# ---- filter-branch / 历史重写的临时目录（绝不能进仓库）----
+.git-rewrite/
