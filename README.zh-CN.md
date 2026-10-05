@@ -143,9 +143,8 @@ src/
 
 **MIT** —— 见 [LICENSE](LICENSE)。
 
-根目录的 MIT 许可**只覆盖 SOFT LAB 自己编写的部分**。每一处来自别处的材料，
-都连同它的授权核验状态记在 **[THIRD_PARTY.zh-CN.md](THIRD_PARTY.zh-CN.md)** 里。
-其中有几条标着「**未确认**」—— 那就是字面意思。
+本项目用于**学习与交流，不做商业用途**。站点上有若干效果来自其他开源项目，
+逐条连原始链接列在 **[THIRD_PARTY.zh-CN.md](THIRD_PARTY.zh-CN.md)** 里，方便你自行往上溯源。
 
 ## 致谢
 
