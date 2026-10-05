@@ -24,6 +24,15 @@ export default function SiteFooter() {
         {t('foot.changelog')}
       </a>
 
+      <a
+        className="site-foot__star mono-sm"
+        href="https://github.com/deity6/softlab"
+        target="_blank"
+        rel="noreferrer"
+      >
+        {t('foot.star')}
+      </a>
+
       <span className="mono-sm">{t('foot.credit')}</span>
     </footer>
   );

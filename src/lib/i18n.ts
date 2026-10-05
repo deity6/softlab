@@ -109,6 +109,7 @@ const zh = {
   'foot.experiments': '{n} 个实验 · 持续更新',
   'foot.log': '开发日志 {v}',
   'foot.changelog': '更新记录 →',
+  'foot.star': '★ 在 GitHub 上留个 star',
   'foot.credit': '灵感来自 soft-matter · canvas-ui · 全部效果实时计算',
 
 
@@ -507,6 +508,7 @@ const en: Record<MsgKey, string> = {
   'foot.experiments': '{n} experiments · updated often',
   'foot.log': 'Dev log {v}',
   'foot.changelog': 'Changelog →',
+  'foot.star': '★ Star it on GitHub',
   'foot.credit': 'Inspired by soft-matter · canvas-ui · every effect computed live',
 
 

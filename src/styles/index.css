@@ -2370,6 +2370,18 @@ input[type="range"]::-moz-range-thumb {
   opacity: 0.7;
 }
 
+/* GitHub star entry — same restraint as the signature: weak by default, it only
+   takes the accent colour on hover. A second always-on accent link sitting next
+   to 「更新记录 →」 would read as two primary actions competing. */
+.site-foot__star {
+  color: var(--ink-faint);
+  transition: color 0.25s var(--ease-soft);
+}
+
+.site-foot__star:hover {
+  color: var(--accent);
+}
+
 /* ---------- not-open-yet page ---------- */
 
 .wip {
