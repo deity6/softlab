@@ -12,6 +12,7 @@ Everything not listed here is this project's own, under [MIT](LICENSE).
 | Where | From | Licence |
 |---|---|---|
 | `src/experiments/soft-matter/` | [Luffyzhang2016 / soft-matter](https://github.com/Luffyzhang2016/soft-matter) — rigid-body motion, deformable shell, shape generators, HDRI refraction shader | no LICENSE file upstream |
+| `src/experiments/soft-matter/vendor/HDRLoader.js` | [three.js](https://github.com/mrdoob/three.js) — the RGBE HDR texture loader, adapted from its `RGBELoader` addon | MIT |
 | `src/experiments/canvas-lab/` | [DavidHDev / canvas-ui](https://github.com/DavidHDev/canvas-ui) — the four canvas effects, re-implemented | [MIT + Commons Clause](https://github.com/DavidHDev/canvas-ui/blob/main/LICENSE.md) |
 | `src/experiments/cloud-train/scene.frag` | **mdb** — *"Up in the CloudSea"*, via [Rice-dog / code-codex](https://github.com/Rice-dog/code-codex) (MIT) and [incarnation-gem / sunset-cloud-train](https://github.com/incarnation-gem/sunset-cloud-train) | see note |
 | `public/studio.hdr` | [Poly Haven](https://polyhaven.com/a/pav_studio_03) — "PAV Studio 03" by Grzegorz Wronkowski; the environment map behind the soft body's refraction | CC0 |
@@ -25,6 +26,10 @@ Everything not listed here is this project's own, under [MIT](LICENSE).
   redistributing the components themselves *"whether alone, in a bundle, or as a
   ported version"*. The four effects here were re-implemented from the documented
   behaviour rather than copied; the distinction is flagged so it stays visible.
+- **soft-cat** — the reference was an unattributed GIF of a hand pressing into a
+  cat-shaped body. No code was taken from it; the implementation (a chain of
+  segment springs on Canvas 2D) is this project's own. Noted because the effect
+  it depicts came from elsewhere.
 - **mdb shader** — code-codex records that the original author supplied the
   shader *"with no redistribution license"*. `scene.frag` is kept verbatim with
   exactly one documented one-line change, credited to mdb, and carried in the
@@ -46,15 +51,17 @@ SOFT LAB 是个人项目，**非商业用途** —— 为了研究视觉效果�
 | 位置 | 来源 | 许可 |
 |---|---|---|
 | `src/experiments/soft-matter/` | [Luffyzhang2016 / soft-matter](https://github.com/Luffyzhang2016/soft-matter) —— 刚体运动、可变形外壳、形状生成器、HDRI 折射 shader | 上游无 LICENSE 文件 |
+| `src/experiments/soft-matter/vendor/HDRLoader.js` | [three.js](https://github.com/mrdoob/three.js) —— RGBE HDR 贴图加载器，改编自其 `RGBELoader` addon | MIT |
 | `src/experiments/canvas-lab/` | [DavidHDev / canvas-ui](https://github.com/DavidHDev/canvas-ui) —— 四个画布效果，重新实现 | [MIT + Commons Clause](https://github.com/DavidHDev/canvas-ui/blob/main/LICENSE.md) |
 | `src/experiments/cloud-train/scene.frag` | **mdb**《Up in the CloudSea》，经 [Rice-dog / code-codex](https://github.com/Rice-dog/code-codex)（MIT）与 [incarnation-gem / sunset-cloud-train](https://github.com/incarnation-gem/sunset-cloud-train) 流传 | 见下 |
 | `public/studio.hdr` | [Poly Haven](https://polyhaven.com/a/pav_studio_03)「PAV Studio 03」，作者 Grzegorz Wronkowski；软体折射用的环境贴图 | CC0 |
 | **Destroy 分区** | [Hugo Duprez / Sprite Fusion](https://www.spritefusion.com) —— 外部游戏，只放链接不打包 | — |
 
-**三点说明**
+**四点说明**
 
 - **soft-matter** —— 上游仓库没有 LICENSE 文件。这里的代码署名引用。
 - **canvas-ui** —— MIT，外加一条 Commons Clause 条件，限制以「alone, in a bundle, or as a **ported version**」再分发组件本身。这里的四个效果是照着行为**重新实现**的，不是复制；把区别标出来，是为了让它一直看得见。
+- **soft-cat** —— 参考素材是一张无署名的 GIF（一只手按进猫形身体）。没有取其代码，实现（Canvas 2D 上的分段弹簧链）是本项目自己写的。记在这里，是因为它表现的效果来自别处。
 - **mdb 的 shader** —— code-codex 里写明原作者提供时**未附再分发许可**。`scene.frag` 逐字保留，全文件只有一处已记录的改动，署名 mdb，与它来源的那个中间仓库保持同一立场。
 
 **权利人**：如果你是此处引用材料的相关权利人，希望移除该内容或调整署名，

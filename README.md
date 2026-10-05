@@ -75,7 +75,7 @@ stays clickable the whole time.
 
 Fourteen layers of cloud drifting past at their own parallax speeds while a
 train crosses a suspension bridge. Speed, framing, swell and noise are all
-adjustable, and there are twenty graded palettes — switching one is like
+adjustable, and there are twenty-three graded palettes — switching one is like
 watching the same day happen at a different hour.
 
 ![Cloud Train](docs/screenshots/cloud-train.png)

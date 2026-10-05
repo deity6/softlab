@@ -81,7 +81,7 @@
   --mo-text-shift: 8px;      /* Arrow Slide / Text Swap 文字位移 */
   --mo-arrow-shift: 18px;    /* Arrow Slide 文字左移距离（给箭头让位） */
   /* Magnetic：光标偏移 → 位移/旋转/放大的三档基准。
-     旧值 14px 配 0.35 强度，实际最大只挪 4.9px，几乎看不见 —— 用户说"要更夸张"。
+     旧值 14px 配 0.35 强度，实际最大只挪 4.9px，几乎看不见 —— 需要更夸张才成立。
      现在 24px × 0.8 强度 ≈ 19px，另加 8° 旋转与 1.05 放大，手感是"被磁铁吸住"。 */
   --mo-magnet-max: 24px;     /* Magnetic 最大偏移 */
   --mo-magnet-rotate: 8deg;  /* Magnetic 最大旋转角（随水平偏移） */

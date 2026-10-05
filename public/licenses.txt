@@ -1,0 +1,63 @@
+SOFT LAB — third-party notices
+==============================
+
+This build contains work from the projects listed below. Everything not listed
+here is this project's own, under the MIT License:
+https://github.com/deity6/softlab/blob/main/LICENSE
+
+A fuller account, with each licence quoted, is in THIRD_PARTY.md.
+
+
+--- three.js ---------------------------------------------------------------
+MIT License — Copyright (c) 2010-2025 three.js authors
+https://github.com/mrdoob/three.js/blob/dev/LICENSE
+
+Used for: the 3D soft-body renderer, and the RGBE HDR texture loader in
+src/experiments/soft-matter/.
+
+
+--- Luffyzhang2016 / soft-matter ------------------------------------------
+https://github.com/Luffyzhang2016/soft-matter
+
+Used for: rigid-body motion, deformable shell, shape generators and the HDRI
+refraction shader behind the Soft Matter experiment.
+
+The upstream repository carries no LICENSE file. The code is used here with
+attribution.
+
+
+--- DavidHDev / canvas-ui -------------------------------------------------
+MIT + Commons Clause License Condition v1.0 — Copyright (c) 2026 David Haz
+https://github.com/DavidHDev/canvas-ui
+
+The four Canvas Lab effects were re-implemented from the documented behaviour
+rather than copied. The upstream licence restricts redistributing its
+components "whether alone, in a bundle, or as a ported version".
+
+
+--- mdb — "Up in the CloudSea" --------------------------------------------
+Original shader by mdb, passed on through Rice-dog/code-codex (MIT) and
+incarnation-gem/sunset-cloud-train.
+
+The scene shader behind the Cloud Train experiment is kept verbatim, with
+attribution. Upstream states that no redistribution licence was supplied; it
+appears here in the same spirit as the intermediate repository it came from,
+and is not offered for reuse.
+
+
+--- Poly Haven — "PAV Studio 03" -----------------------------------------
+CC0. Photographed by Grzegorz Wronkowski.
+https://polyhaven.com/a/pav_studio_03
+
+Used as the environment map behind the Soft Matter experiment's refraction.
+
+
+--- 中文摘要 --------------------------------------------------------------
+
+本作品使用了以下项目的工作：three.js（MIT）、Luffyzhang2016/soft-matter（上游
+无 LICENSE 文件）、DavidHDev/canvas-ui（MIT + Commons Clause，本站四个画布效果为
+重新实现）、mdb 的《Up in the CloudSea》着色器（经 Rice-dog/code-codex 与
+incarnation-gem/sunset-cloud-train 流传，上游声明未提供再分发许可）、以及
+Poly Haven 的 CC0 环境贴图。
+
+其余部分为本项目自己编写，以 MIT 许可发布。

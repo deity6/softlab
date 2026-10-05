@@ -343,8 +343,8 @@ export default function MotionButton({ entry, size }: { entry: ButtonEntry; size
       );
 
     // Loading Morph: 三个层 —— 初始文案 / 转圈 / 完成文案。
-    // 完成态要**换文案**（Save → Saved），否则"转完又回到原点"，用户说
-    // 「对于一个 save 按钮好像不太合理」。两段文案各自一个 span，靠
+    // 完成态要**换文案**（Save → Saved），否则"转完又回到原点"——
+    // 对一个 save 按钮来说那样不合理。两段文案各自一个 span，靠
     // `.is-loading` / `.is-done` 切换透明度，宽度由 CSS 令牌驱动。
     case 'loading-morph':
       return (

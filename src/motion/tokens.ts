@@ -16,9 +16,9 @@ export const DURATIONS = {
   slow: 500,
   lazy: 600,
   glacial: 800,
-  /** 3D Flip：翻转与填充共用一档，两者必须同步（用户明确要求"匹配"） */
+  /** 3D Flip：翻转与填充共用一档，两者必须同步 */
   roll: 900,
-  /** Ripple：涟漪要有明显扩散过程，比 lazy 慢 ~1.7×（用户要求"至少再慢 1.5–2 倍"） */
+  /** Ripple：涟漪要有明显扩散过程，比 lazy 慢 ~1.7× */
   tide: 1000,
 } as const;
 

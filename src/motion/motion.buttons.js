@@ -324,7 +324,7 @@
    *
    * 状态机：
    *   pointerdown  → charging：rAF 每帧把 `--mo-charge` 从 0 推到 1
-   *   charge == 1  → 自动释放（用户说的"到最大就自动松手"）
+   *   charge == 1  → 自动释放（即"到最大就自动松手"）
    *   pointerup    → 提前释放（此时 charge 就是存了多少能量）
    *   释放         → is-releasing + 把蓄力深度写成 `--mo-fire-from` / `--mo-fire-amp`
    *

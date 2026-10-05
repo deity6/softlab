@@ -1,0 +1,30 @@
+# Cloudflare Pages 响应头
+# https://developers.cloudflare.com/pages/configuration/headers/
+#
+# ⚠️ 这个文件只在**部署到 Cloudflare Pages 时**生效，本地 dev / preview 看不到。
+#    首次部署后请用 `curl -sI https://doit.loc.cc/` 核对，并在浏览器控制台
+#    确认没有 CSP 报错（尤其导出单文件 HTML 那条路径）。
+#
+# 站点是纯静态、无后端、无登录、无用户数据，这些头的作用是"多一道防线"，
+# 不是修补某个已知漏洞。
+
+/*
+  # 扼制 MIME 嗅探
+  X-Content-Type-Options: nosniff
+
+  # 不允许被任何页面嵌套（防点击劫持）
+  X-Frame-Options: DENY
+
+  # 跨域时只带源，不带完整路径（Cloudflare 默认已给，这里显式固定）
+  Referrer-Policy: strict-origin-when-cross-origin
+
+  # 站上没有任何功能需要这些能力，一律关掉
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+
+  # 强制 HTTPS（Cloudflare 上已是 HTTPS，这条管的是浏览器后续访问）
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+  # CSP：脚本全部来自自身；样式需要 'unsafe-inline'，因为 React 用 style 属性
+  # 定位 canvas（这是 CSP2 对 style 属性的要求，不是偷懒）。
+  # blob: 留给「导出单文件 HTML」的下载路径。
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
