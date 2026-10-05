@@ -2,12 +2,14 @@
 
 **An index of digital matter**
 
+**English** · [简体中文](README.zh-CN.md)
+
 *New things get collected the moment they turn up: ones that flow, ones that
 tear, ones that spring back, ones that come apart and get put back together.
 Each one is taken apart until we can see how it actually works, then rebuilt as
 a page you can play with.*
 
-[**Live site →**](https://doit.loc.cc/) · [中文说明](README.zh-CN.md)
+[**Live site →**](https://doit.loc.cc/)
 
 ![SOFT LAB — the home page](docs/screenshots/home-light.png)
 

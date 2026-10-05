@@ -2,10 +2,12 @@
 
 **数字物质标本馆**
 
+[English](README.md) · **简体中文**
+
 *看到新奇的东西就收进来：会流动的、会撕裂的、会回弹的、会被撕开又拼回去的。  
 每个都拆开看清楚它到底怎么做到的，再做成能上手玩的页面。*
 
-[**线上站点 →**](https://doit.loc.cc/) · [English](README.md)
+[**线上站点 →**](https://doit.loc.cc/)
 
 ![SOFT LAB 首页](docs/screenshots/home-light.png)
 
