@@ -1,3 +1,13 @@
+/**
+ * RGBE HDR texture loader — adapted from three.js's `RGBELoader` addon.
+ *
+ * three.js is MIT licensed: Copyright © 2010-2025 three.js authors.
+ * https://github.com/mrdoob/three.js
+ * See THIRD_PARTY.md §4 for the full provenance note.
+ *
+ * (This header is kept because the MIT licence requires the copyright notice to
+ * travel with the code; the file arrived here without it.)
+ */
 import {
 	DataTextureLoader,
 	DataUtils,

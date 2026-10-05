@@ -1,68 +1,264 @@
-# Third-party sources
+# Third-party notices
 
-> [中文摘要见下方](#中文摘要)
+SOFT LAB contains both independently written code and effects that are adapted
+from, rebuilt from, or visually informed by the work of others.
 
-SOFT LAB is a personal, **non-commercial** project — it exists to study visual
-effects and share them, not to be sold or shipped as a product.
+The **MIT License** in this repository's root **applies only to content SOFT LAB
+wrote itself**. It does not relicense any of the third-party works, code
+fragments, adapted shaders, assets or other protected material listed below.
 
-This project draws on the work of several other projects. This file records
-where each piece came from, so that attribution lands in the right place.
-Everything not listed here is this project's own, under [MIT](LICENSE).
+This file records provenance and the current state of verification. **It does
+not itself grant any rights.** Where this notice conflicts with an original
+licence or an author's terms, the original terms prevail.
 
-| Where | From | Licence |
-|---|---|---|
-| `src/experiments/soft-matter/` | [Luffyzhang2016 / soft-matter](https://github.com/Luffyzhang2016/soft-matter) — rigid-body motion, deformable shell, shape generators, HDRI refraction shader | no LICENSE file upstream |
-| `src/experiments/soft-matter/vendor/HDRLoader.js` | [three.js](https://github.com/mrdoob/three.js) — the RGBE HDR texture loader, adapted from its `RGBELoader` addon | MIT |
-| `src/experiments/canvas-lab/` | [DavidHDev / canvas-ui](https://github.com/DavidHDev/canvas-ui) — the four canvas effects, re-implemented | [MIT + Commons Clause](https://github.com/DavidHDev/canvas-ui/blob/main/LICENSE.md) |
-| `src/experiments/cloud-train/scene.frag` | **mdb** — *"Up in the CloudSea"*, via [Rice-dog / code-codex](https://github.com/Rice-dog/code-codex) (MIT) and [incarnation-gem / sunset-cloud-train](https://github.com/incarnation-gem/sunset-cloud-train) | see note |
-| `public/studio.hdr` | [Poly Haven](https://polyhaven.com/a/pav_studio_03) — "PAV Studio 03" by Grzegorz Wronkowski; the environment map behind the soft body's refraction | CC0 |
-| the **Destroy** section | [Hugo Duprez / Sprite Fusion](https://www.spritefusion.com) — an external game, linked rather than bundled | — |
+**Last updated:** 5 October 2026
 
-### Notes
-
-- **soft-matter** — the upstream repository ships no LICENSE file. The code is
-  used here with attribution.
-- **canvas-ui** — MIT, plus a Commons Clause condition that restricts
-  redistributing the components themselves *"whether alone, in a bundle, or as a
-  ported version"*. The four effects here were re-implemented from the documented
-  behaviour rather than copied; the distinction is flagged so it stays visible.
-- **soft-cat** — the reference was an unattributed GIF of a hand pressing into a
-  cat-shaped body. No code was taken from it; the implementation (a chain of
-  segment springs on Canvas 2D) is this project's own. Noted because the effect
-  it depicts came from elsewhere.
-- **mdb shader** — code-codex records that the original author supplied the
-  shader *"with no redistribution license"*. `scene.frag` is kept verbatim with
-  exactly one documented one-line change, credited to mdb, and carried in the
-  same spirit as the intermediate repository it came from.
-
-**Rights holders.** If you are the author of any work referenced here and wish
-for it to be removed, or for its attribution to be amended, please open an
-issue. Such requests will be handled promptly.
+> 中文版见 **[THIRD_PARTY.zh-CN.md](THIRD_PARTY.zh-CN.md)**。
 
 ---
 
-# 中文摘要
+## Status key
 
-SOFT LAB 是个人项目，**非商业用途** —— 为了研究视觉效果、并把它们分享出来，
-不用于售卖、也不作为产品发布。
+- **Confirmed:** verifiable evidence of provenance and an applicable licence or
+  authorisation is on record.
+- **Conditional:** a default platform licence may apply, but the specific work
+  page and the terms in force at the time still need to be preserved as
+  evidence.
+- **Unverified:** an author is known or suspected, but redistribution
+  authorisation has not been established. **Attribution alone is not
+  permission.**
+- **Reference only:** implemented independently from publicly shown visuals or
+  interaction concepts; no third-party source or assets are included.
 
-这个项目引用了若干其他项目的工作。没列在这里的部分，都是本项目自己写的，走 [MIT](LICENSE)。
+## Scope of the project's own rights
 
-| 位置 | 来源 | 许可 |
+- SOFT LAB claims rights only over what it wrote itself: the implementation,
+  interface, parameter controls, lifecycle code and other original additions.
+- The project claims no ownership over third-party works or over parts derived
+  from them. Separable original additions fall under the repository's MIT
+  License; that does not change the licence of the underlying or inseparable
+  third-party material.
+- Mentions of authors, projects and products serve to identify provenance and
+  give credit. They **do not imply sponsorship, affiliation, approval or
+  endorsement**.
+- Every adaptation or rebuild here is an unofficial implementation and must not
+  be described as an official release by the original author.
+- **Attribution and change notes do not cure a missing licence.**
+
+---
+
+## 1. Soft Matter — `src/experiments/soft-matter/`
+
+| | |
+|---|---|
+| Original work | soft-matter |
+| Author | Luffyzhang2016 |
+| Source | https://github.com/Luffyzhang2016/soft-matter |
+| **Status** | **Unverified** |
+
+SOFT LAB ports the rigid-body motion, deformable shell, shape generators and
+HDRI refraction shader (`vendor/physics.js`, `vendor/shapes.js`), lifting out the
+DOM bindings so a React panel can drive them.
+
+**The upstream repository has no LICENSE file.** No licence means all rights
+reserved, with no grant of redistribution. Therefore:
+
+> **Until the author grants permission, this notice does not claim that SOFT LAB
+> holds a right to publicly redistribute that code.**
+
+**SOFT LAB's changes:** removed the DOM bindings, re-wired the model to a React
+parameter panel and the site's theme system, added TypeScript declarations,
+adjusted module import paths.
+
+This is an unofficial adaptation. The project does not suggest that
+Luffyzhang2016 endorses or is affiliated with SOFT LAB.
+
+**The repository's MIT License does not apply to this experiment's `vendor/`
+directory.**
+
+> Exception: `vendor/HDRLoader.js` has a separate origin — it is adapted from
+> three.js's `RGBELoader` addon, licensed **MIT**. See section 4. Its original
+> copyright header is retained in the file.
+
+## 2. Canvas Lab — `src/experiments/canvas-lab/`
+
+| | |
+|---|---|
+| Reference work | canvas-ui |
+| Author | David Haz (DavidHDev) |
+| Source | https://github.com/DavidHDev/canvas-ui |
+| Licence | MIT + Commons Clause License Condition v1.0 |
+| **Status** | **Conditional** |
+
+The four effects (asciify / decrypt / ripple / glitch) were **re-implemented from
+the documented behaviour**, not copied: the upstream source was read to
+understand behaviour, and the code here is SOFT LAB's own (see the header
+comment in `effects/asciify.ts`).
+
+⚠️ The upstream licence carries a Commons Clause condition. Quoting it:
+
+> you do not sell, sublicense, or redistribute the components themselves —
+> whether alone, in a bundle, or **as a ported version**.
+
+The phrase *"as a ported version"* was added by the upstream author; it is not
+part of the standard Commons Clause wording. This repository publishes one `.ts`
+file per effect; **if a reader considers those files a port of the upstream
+components, that condition applies to them.** It is flagged so downstream users
+can make that call with their eyes open.
+
+**SOFT LAB's changes:** did not reuse the upstream's experimental-API route;
+instead rasterises the text itself and measures per-cell coverage before emitting
+characters; wired into this site's duration tokens and parameter panel; the four
+effects share one interaction framework.
+
+This is an unofficial implementation. The project does not suggest that David
+Haz endorses or is affiliated with SOFT LAB.
+
+## 3. Cloud Train — `src/experiments/cloud-train/scene.frag`
+
+| | |
+|---|---|
+| Author credit retained in the supplied material | **mdb** |
+| Original source | not verified |
+| Original licence or authorisation | not verified |
+| **Status** | **Unverified** |
+
+**Chain of custody:** mdb ("Up in the CloudSea") → the "Cloud Train Background"
+plugin in [Rice-dog / code-codex](https://github.com/Rice-dog/code-codex) (MIT) →
+[incarnation-gem / sunset-cloud-train](https://github.com/incarnation-gem/sunset-cloud-train)
+→ this repository.
+
+`scene.frag` is **kept verbatim**. The whole file has exactly one change: the
+time-spread constant `4.` in the foreground averaging loop becomes `4./3.`
+(the diff is marked in `engine.ts`).
+
+The upstream code-codex third-party notice lists this shader as *Unverified* and
+states:
+
+> Until an authoritative source licence is preserved or direct authorisation is
+> obtained from the relevant rights holder, this notice does not claim that the
+> project holds a right to publicly redistribute the supplied shader.
+> **Attribution alone is not permission.**
+
+**This repository takes the same position: until an applicable licence or direct
+authorisation is obtained, this notice does not claim that SOFT LAB holds a
+right to publicly redistribute that shader.**
+
+**SOFT LAB's changes:** wired the shader into a two-pass pipeline (offscreen
+texture + post-process grade), wrote `post.frag` and the colour grading, the
+twenty-plus lit palettes, the parameter panel and the single-file HTML export.
+**The repository's MIT License does not apply to `scene.frag` or to parts derived
+from it** (`post.frag` and `palettes.ts` are SOFT LAB's own and do fall under
+MIT).
+
+This is an unofficial adaptation. The project does not suggest that mdb, or any
+possible originating author, endorses or is affiliated with SOFT LAB.
+
+## 4. three.js — Confirmed
+
+| | |
+|---|---|
+| Source | https://github.com/mrdoob/three.js |
+| Licence | **MIT** — Copyright © 2010-2025 three.js authors |
+| **Status** | **Confirmed** |
+
+Used for: the Soft Matter 3D renderer; and
+`src/experiments/soft-matter/vendor/HDRLoader.js` (an RGBE HDR texture loader
+adapted from three.js's `RGBELoader` addon, with the original copyright and
+licence header retained). Also a runtime dependency (`package.json`).
+
+## 5. Poly Haven — "PAV Studio 03" — Confirmed
+
+| | |
+|---|---|
+| Source | https://polyhaven.com/a/pav_studio_03 |
+| Author | Grzegorz Wronkowski |
+| Licence | **CC0 1.0** |
+| **Status** | **Confirmed** |
+
+Used as `public/studio.hdr` — the environment map behind the Soft Matter
+experiment's refraction. (CC0 requires no attribution; the credit here is
+voluntary.)
+
+## 6. The Destroy section — Reference only
+
+| | |
+|---|---|
+| Work | destroy-the-web (an external game) |
+| Author | Hugo Duprez / Sprite Fusion |
+| Source | https://www.spritefusion.com |
+| **Status** | **Reference only** |
+
+`src/lib/destroy.ts` stores only the game's entry URL and the link-parameter
+construction logic. It **contains none of that game's code or assets**; the link
+opens the other site in a new tab.
+
+## 7. Soft Cat — Reference only
+
+| | |
+|---|---|
+| Visual reference | an unattributed GIF (a hand pressing into a cat-shaped body) |
+| **Status** | **Reference only** |
+
+`src/experiments/soft-cat/` — a chain of segment springs on Canvas 2D, with
+collision and deformation — was written independently by SOFT LAB and includes
+none of that GIF's assets or code. It is listed because the effect it depicts
+came from elsewhere.
+
+## 8. Runtime dependencies
+
+| Package | Licence | Status |
 |---|---|---|
-| `src/experiments/soft-matter/` | [Luffyzhang2016 / soft-matter](https://github.com/Luffyzhang2016/soft-matter) —— 刚体运动、可变形外壳、形状生成器、HDRI 折射 shader | 上游无 LICENSE 文件 |
-| `src/experiments/soft-matter/vendor/HDRLoader.js` | [three.js](https://github.com/mrdoob/three.js) —— RGBE HDR 贴图加载器，改编自其 `RGBELoader` addon | MIT |
-| `src/experiments/canvas-lab/` | [DavidHDev / canvas-ui](https://github.com/DavidHDev/canvas-ui) —— 四个画布效果，重新实现 | [MIT + Commons Clause](https://github.com/DavidHDev/canvas-ui/blob/main/LICENSE.md) |
-| `src/experiments/cloud-train/scene.frag` | **mdb**《Up in the CloudSea》，经 [Rice-dog / code-codex](https://github.com/Rice-dog/code-codex)（MIT）与 [incarnation-gem / sunset-cloud-train](https://github.com/incarnation-gem/sunset-cloud-train) 流传 | 见下 |
-| `public/studio.hdr` | [Poly Haven](https://polyhaven.com/a/pav_studio_03)「PAV Studio 03」，作者 Grzegorz Wronkowski；软体折射用的环境贴图 | CC0 |
-| **Destroy 分区** | [Hugo Duprez / Sprite Fusion](https://www.spritefusion.com) —— 外部游戏，只放链接不打包 | — |
+| `react` / `react-dom` | MIT | Confirmed |
+| `three` | MIT | Confirmed (see 4) |
+| `vite` / `typescript` / `tailwindcss` / `@tailwindcss/vite` / `@vitejs/plugin-react` | MIT | Confirmed (build-time only) |
 
-**四点说明**
+## 9. Typefaces
 
-- **soft-matter** —— 上游仓库没有 LICENSE 文件。这里的代码署名引用。
-- **canvas-ui** —— MIT，外加一条 Commons Clause 条件，限制以「alone, in a bundle, or as a **ported version**」再分发组件本身。这里的四个效果是照着行为**重新实现**的，不是复制；把区别标出来，是为了让它一直看得见。
-- **soft-cat** —— 参考素材是一张无署名的 GIF（一只手按进猫形身体）。没有取其代码，实现（Canvas 2D 上的分段弹簧链）是本项目自己写的。记在这里，是因为它表现的效果来自别处。
-- **mdb 的 shader** —— code-codex 里写明原作者提供时**未附再分发许可**。`scene.frag` 逐字保留，全文件只有一处已记录的改动，署名 mdb，与它来源的那个中间仓库保持同一立场。
+No font files are bundled, and no request is made to any font CDN. The site uses
+a system font stack (`Inter`, `PingFang SC`, `Microsoft YaHei`, …) resolved by the
+visitor's own machine.
 
-**权利人**：如果你是此处引用材料的相关权利人，希望移除该内容或调整署名，
-请提交 issue，我们会尽快处理。
+## 10. Written by SOFT LAB
+
+The following is the project's own work, contains no third-party material, and
+falls under the repository's MIT License:
+
+- the site shell, hash router, section and panel structure
+- the i18n layer and the theme token system
+- the motion duration tokens and all button effects (`src/motion/`, `src/buttons/`)
+- Cloud Train's `post.frag` grading, `palettes.ts` presets, and the single-file
+  HTML export
+- the version log (`changelog.ts`) and this notice
+
+---
+
+## If you redistribute
+
+If you distribute this repository's source or its built output:
+
+1. Include this notice and the full text of every applicable licence.
+2. Where practical, keep the author, work title, source link and licence note in
+   the source.
+3. Mark clearly what SOFT LAB changed.
+4. **Do not describe material listed as "Unverified" as MIT-licensed.**
+5. If an effect's provenance or licence cannot be verified, remove or disable
+   that effect from your distribution.
+
+## Scope of the repository licence
+
+The MIT License in the repository root **applies only to SOFT LAB's original
+work** (section 10). The material in sections 1 and 3, and whatever a reader
+deems a ported version in section 2, remains subject to its own licence,
+copyright terms or authorisation.
+
+## Contact
+
+If you are the copyright holder of any work referenced here and believe the
+credit, provenance, classification or licence note needs correcting, please open
+an issue — it will be handled promptly.
+
+This notice records provenance and licence scope; it is not legal advice. The
+project does not warrant that the information here is complete; before any
+commercial distribution, or while any significant source remains unclear,
+qualified legal advice should be sought.

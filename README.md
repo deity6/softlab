@@ -166,9 +166,10 @@ current state.
 
 **MIT** — see [LICENSE](LICENSE).
 
-This project draws on a number of other projects, so every part that comes from
-elsewhere is recorded together with its original licence in
-**[THIRD_PARTY.md](THIRD_PARTY.md)**.
+The root MIT licence covers **only the parts SOFT LAB wrote itself**. Every piece
+that came from elsewhere — and how far its authorisation has been verified — is
+recorded with its status in **[THIRD_PARTY.md](THIRD_PARTY.md)**. Some entries
+there are marked *unverified*; that means exactly what it says.
 
 ## Credits
 
