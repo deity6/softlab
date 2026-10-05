@@ -1,6 +1,6 @@
 import { findSection } from '../lib/sections';
 import { useLang } from '../lib/i18n';
-import { DESTROY_ANY_URL, DESTROY_SELF_URL } from '../lib/destroy';
+import { DESTROY_ANY_URL, destroySelfUrl } from '../lib/destroy';
 
 /**
  * Project 03 — the demolition toy.
@@ -52,7 +52,7 @@ export default function DestroyPanel() {
       <div className="destroy-foot reveal">
         <div className="destroy-cta">
           {/* The one real button, and it names this site as the level. */}
-          <a className="destroy-go" href={DESTROY_SELF_URL} target="_blank" rel="noreferrer">
+          <a className="destroy-go" href={destroySelfUrl()} target="_blank" rel="noreferrer">
             <span>{t('destroy.start')}</span>
             <span aria-hidden>↗</span>
           </a>

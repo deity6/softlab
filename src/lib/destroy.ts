@@ -9,11 +9,21 @@
  */
 export const GAME_ORIGIN = 'https://destroy.spritefusion.com';
 
-/** This site, as the game will see it. */
-export const SITE_URL = 'https://doit.loc.cc/';
+/**
+ * This site, as the game will see it.
+ *
+ * Resolved from `location` at call time rather than hard-coded: a fork, a
+ * preview deployment or a self-hosted copy then points at *itself* instead of
+ * sending its visitors to somebody else's instance.
+ */
+export function siteUrl(): string {
+  return `${window.location.origin}${window.location.pathname}`;
+}
 
 /** Straight in, with this site already loaded as the level. */
-export const DESTROY_SELF_URL = `${GAME_ORIGIN}/?url=${encodeURIComponent(SITE_URL)}`;
+export function destroySelfUrl(): string {
+  return `${GAME_ORIGIN}/?url=${encodeURIComponent(siteUrl())}`;
+}
 
 /** The plain front door — for smashing somebody else's site. */
 export const DESTROY_ANY_URL = `${GAME_ORIGIN}/`;

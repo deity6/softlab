@@ -2,7 +2,7 @@
 # https://developers.cloudflare.com/pages/configuration/headers/
 #
 # ⚠️ 这个文件只在**部署到 Cloudflare Pages 时**生效，本地 dev / preview 看不到。
-#    首次部署后请用 `curl -sI https://doit.loc.cc/` 核对，并在浏览器控制台
+#    首次部署后请用 `curl -sI https://<你的域名>/` 核对，并在浏览器控制台
 #    确认没有 CSP 报错（尤其导出单文件 HTML 那条路径）。
 #
 # 站点是纯静态、无后端、无登录、无用户数据，这些头的作用是"多一道防线"，
