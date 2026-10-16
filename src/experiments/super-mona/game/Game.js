@@ -41,6 +41,12 @@ export class Game {
   constructor(onStateChange, options = {}) {
     this.onStateChange = onStateChange;
     this.autoPlay = Boolean(options.autoPlay);
+    /**
+     * 封面演示：换成预制关卡 + 恒定速度 + 周期循环。
+     * 见 `demoLevel.js` —— 原站那套程序化关卡是「每局不同 + 2→20 格/秒加速 +
+     * 无限不循环」，三样都不适合当封面。
+     */
+    this.demo = options.demo ?? null;
     // 首页封面会把游戏真跑起来，但那一份不该发出声音：`sfx` 是模块级单例，
     // 改它的 muted 会写进 localStorage，连用户真正在玩的那一份也一起静掉。
     this.sfx = options.silent ? SILENT_SFX : sfx;
@@ -112,10 +118,13 @@ export class Game {
     );
     this.worldGroup.add(this.blockField.mesh, this.bugSheet.mesh);
     this.grid.update(this.scrollX);
-    this.level.createLevel();
+    if (this.demo) this.level.createDemoLevel();
+    else this.level.createLevel();
     this.worldGroup.add(this.mona.mesh);
     this.worldGroup.add(this.ducky.group);
-    this.mona.createTrails(this.worldGroup);
+    // 封面演示不放残影：卡片只有一百多像素，六条彩色残影糊在角色身上，看起来
+    // 就是她在闪。原站这个是给全尺寸画面用的。
+    if (!this.demo) this.mona.createTrails(this.worldGroup);
     this.mona.update(0, 0);
 
     // 演示模式不接键盘 —— 它可能同时在首页挂好几份，每份都往 window 上挂一对
@@ -133,7 +142,38 @@ export class Game {
 
   /** 原 getForcedScrollSpeed：从 2 格/秒线性加速到 20 */
   getForcedScrollSpeed() {
+    // 演示用恒定速度：加速曲线放在一百多像素高的封面里，前半段像卡帧、后半段看不清
+    if (this.demo) return this.demo.speed;
     return Math.min(SCROLL_SPEED_MAX, SCROLL_SPEED_MIN + SCROLL_ACCEL_PER_SEC * this.elapsed);
+  }
+
+  /**
+   * 预制关卡跑完一圈：把世界回卷到起点。
+   *
+   * 不是简单地把 `scrollX` 减一个周期 —— 地形按 `DEMO_SPAN` 重复，直接减会让
+   * 新的 [0, span) 和旧的 [0, span) 两份方块叠在一起。所以整片清空重铺：
+   * 因为铺法是定值表、不带随机，重铺出来的和刚才那一圈完全一致，画面不跳。
+   *
+   * 角色也跟着挪回一个周期，相对位置（她在画面里的站位）保持不变。
+   */
+  loopDemo() {
+    const span = this.scrollX; // 直接回到 0：地形按 span 周期重复，0 和 N 个周期处长得一样
+
+    for (const block of this.blocks) {
+      this.unregisterPlatformBlock(block);
+      block.remove();
+    }
+    this.blocks.length = 0;
+    for (const pickup of this.pickups) this.removeWorldMesh(pickup.mesh);
+    this.pickups.length = 0;
+    for (let i = this.bugs.length - 1; i >= 0; i -= 1) this.removeBug(i);
+
+    this.platformRows = [];
+    this.pendingPickupSegments = [];
+    this.scrollX -= span;
+    this.elapsed = 0;
+    this.mona.x -= span;
+    this.level.createDemoLevel();
   }
 
   /** 某一格上方最高的可站立面（顶面 y），这列没有方块就返回 null */
@@ -223,6 +263,10 @@ export class Game {
       this.scrollX += this.getForcedScrollSpeed() * dt;
       this.level.generateSceneUntil(this.scrollX + GRID_X + 80);
       this.cleanupScene();
+      // 预制关卡跑完一圈就回卷（见 loopDemo）
+      // 每 12 圈才回卷一次：次数太少会看到「整片地形闪一下」，太频繁又没必要 ——
+      // 地形本来就是周期重复的，不回卷也能一直跑下去。
+      if (this.demo && this.scrollX >= this.demo.span * 12) this.loopDemo();
     }
 
     if (this.autoPlay) this.autoPilot();
@@ -492,7 +536,8 @@ export class Game {
       }
 
       if (this.mona.takeDamage()) {
-        this.lives -= 1;
+        // 演示模式不掉命：死一次整段会重建，画面上就是「全部方块散开一下」
+        this.lives -= this.demo ? 0 : 1;
         if (this.lives === 0) {
           this.sfx.playGameEffect('gameOver', false);
           this.gameOver = true;

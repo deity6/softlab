@@ -168,7 +168,14 @@
   gap: 16px;
 }
 
-.soundButton {
+/* 音效开关：右上角，**待机时也在**。原站把它放在游戏中那排 HUD 的第三格里，
+   而 HUD 只在游戏进行中存在 —— 于是没开局的时候整页找不到声音开关。
+   视觉仍是原站那枚 32×32 的白方块，只补定位。 */
+.soundToggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
   display: grid;
   flex: none;
   place-items: center;
@@ -183,18 +190,88 @@
   pointer-events: auto;
 }
 
-.soundButton:hover {
+/* --------------------------------------------------------------------------
+ * 竖屏提示
+ * ------------------------------------------------------------------------ */
+
+/* 只盖住画布这一块，不盖整页。一进网站就全屏要求横屏，别人连这是个什么站
+   都还没看明白 —— 而需要横屏的是**游戏**，不是这个页面。 */
+.rotateHint {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px;
+  background: #e9edec;
+  color: #14161a;
+  text-align: center;
+}
+
+.rotateHintPhone {
+  position: relative;
+  width: 30px;
+  height: 50px;
+  border: 2px solid currentColor;
+  border-radius: 7px;
+  animation: monaTilt 2.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
+/* 底部那道短横，转起来才看得出是台手机 */
+.rotateHintPhone::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 11px;
+  height: 2px;
+  margin-left: -6px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.rotateHintText {
+  font-family: var(--site-fontStack-monospace);
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+}
+
+@keyframes monaTilt {
+  0%,
+  18% {
+    transform: rotate(0deg);
+  }
+  46%,
+  72% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotateHintPhone {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
+
+.soundToggle:hover {
   color: #fff;
   background: #777;
 }
 
-.soundButton:focus-visible {
+.soundToggle:focus-visible {
   outline: none;
   color: #000;
   background: #fff;
 }
 
-.soundButton > svg {
+.soundToggle > svg {
   width: 20px;
   height: 20px;
 }
@@ -283,6 +360,14 @@
   .playButton {
     width: 100%;
   }
+
+  /* 居中那颗不受「撑满整行」影响 —— 它本来就该是个居中的胶囊，不是一条横幅 */
+  .playButtonHero {
+    width: auto;
+    min-width: min(240px, 74%);
+    min-height: 54px;
+    padding: 0 32px;
+  }
 }
 
 .heroEyebrow {
@@ -343,6 +428,31 @@
   background-color: #f4f6f5;
   color: #9aa4a0;
   cursor: not-allowed;
+}
+
+/* 待机 / 结算时那颗大按钮：压在画面正中。
+   原先它和眉标一起排在画布下面那条栏里，看着像页脚链接 —— 而它其实是这一屏
+   唯一该被看见的东西。放大到接近 GAME OVER 那行字的视觉重量，但不挡画面。 */
+.playButtonHero {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  justify-content: center;
+  min-width: min(260px, 54%);
+  min-height: 58px;
+  padding: 0 44px;
+  font-size: clamp(16px, 1.6vmin + 9px, 21px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-width: 1.5px;
+  box-shadow: 0 8px 26px rgb(0 0 0 / 0.1);
+}
+
+/* 结算：GAME OVER 那行像素字落在画面中下部，按钮让到它下面 */
+.playButtonHero[data-action='playAgain'] {
+  top: 80%;
 }
 
 @keyframes hudEnter {

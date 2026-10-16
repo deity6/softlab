@@ -107,7 +107,26 @@ function SoundIcon({ muted }) {
  * 负责：WebGL 能力检测与降级、引擎挂载/卸载、可见性(IntersectionObserver)与
  * 尺寸(ResizeObserver)节流、HUD、控制提示的渐进隐藏、音效开关、本地高分。
  */
-export function SuperMona({ eyebrow = TEXT.eyebrow.left }) {
+/**
+ * 竖屏 + 触屏。
+ *
+ * 判定里带 `pointer: coarse` 是为了不给桌面窄窗口误报 —— 桌面把窗口拖窄了不该
+ * 看到「把手机横过来」。横版跑酷在竖屏里画布只剩中间一条窄缝，既按不着也看不清。
+ */
+const PORTRAIT_QUERY = '(orientation: portrait) and (pointer: coarse)';
+
+function usePortrait() {
+  const [portrait, setPortrait] = useState(() => window.matchMedia(PORTRAIT_QUERY).matches);
+  useEffect(() => {
+    const query = window.matchMedia(PORTRAIT_QUERY);
+    const onChange = () => setPortrait(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+  return portrait;
+}
+
+export function SuperMona({ eyebrow = TEXT.eyebrow.left, labels, portraitHint }) {
   const wrapperRef = useRef(null);
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
@@ -272,10 +291,18 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left }) {
   });
 
   const blocked = !supported || reducedMotion;
+  const portrait = usePortrait();
   const action = state.gameOverScreenVisible ? 'playAgain' : inGame ? 'exitGame' : 'playGame';
-  const buttonDisabled = showActions || (state.gameOver && !state.gameOverScreenVisible);
+  // 竖屏下不让开局：开了也只能看见一条缝。按钮留着但点不动，提示层会说明为什么。
+  const buttonDisabled = showActions || portrait || (state.gameOver && !state.gameOverScreenVisible);
   const eyebrowLeft = highScore === null ? eyebrow : TEXT.eyebrow.highScore;
   const eyebrowRight = highScore === null ? undefined : String(highScore);
+
+  /**
+   * 按钮上显示的字。默认是原站的英文文案；接进 SOFT LAB 之后由调用方按当前语言
+   * 覆盖（`labels`）。埋点串 `ANALYTICS` 不跟着翻 —— 那是给统计看的，和界面语言无关。
+   */
+  const label = { ...TEXT.button.label, ...labels };
 
   const handleActionClick = () => {
     if (state.gameOverScreenVisible) {
@@ -293,6 +320,26 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left }) {
     launch(false);
   };
 
+  /**
+   * 开始 / 退出 / 再来一局共用一颗按钮，区别只在位置：
+   *   · 待机与结算时它压在画面正中（`.playButtonHero`）—— 原先挂在画布下面那条
+   *     眉标栏里，看着像页脚链接，看不出「这一屏是个游戏」；
+   *   · 游戏进行中的「退出游戏」留在那条栏里，不挡画面。
+   */
+  const playButton = (
+    <button
+      className={`${styles.playButton}${action === 'exitGame' ? '' : ` ${styles.playButtonHero}`}`}
+      type="button"
+      data-button={TEXT.button.variant}
+      data-action={action}
+      disabled={buttonDisabled}
+      data-analytics-click={ANALYTICS[action]}
+      onClick={handleActionClick}
+    >
+      {label[action]}
+    </button>
+  );
+
   return (
     <>
       <div
@@ -307,6 +354,29 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left }) {
         {!blocked && <canvas ref={canvasRef} />}
         {blocked && (
           <img className={styles.fallbackImage} src={ASSETS.fallback} alt="" aria-hidden draggable={false} />
+        )}
+
+        {/* 音效开关摆在右上角，**待机时也在** —— 原站把它塞在 HUD 的第三格里，
+            而那个 HUD 只在游戏进行中存在，于是没开局的时候整页找不到声音开关。 */}
+        {!blocked && (
+          <button
+            className={styles.soundToggle}
+            type="button"
+            aria-label={muted ? TEXT.sound.turnOn : TEXT.sound.turnOff}
+            aria-pressed={muted}
+            onClick={() => setMuted(sfx.toggleMuted())}
+          >
+            <SoundIcon muted={muted} />
+          </button>
+        )}
+
+        {/* 竖屏挡住这一块 —— 只盖画布，不盖整页。一进来就全屏要求横屏，别人
+            连这是个什么网站都还没看明白。 */}
+        {!blocked && portrait && portraitHint && (
+          <div className={styles.rotateHint}>
+            <span className={styles.rotateHintPhone} aria-hidden="true" />
+            <span className={styles.rotateHintText}>{portraitHint}</span>
+          </div>
         )}
 
         {showScoreBoard && (
@@ -335,15 +405,6 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left }) {
                 </p>
                 <div className={styles.scoreControls}>
                   <span className={styles.score}>Your score: {state.score}</span>
-                  <button
-                    className={styles.soundButton}
-                    type="button"
-                    aria-label={muted ? TEXT.sound.turnOn : TEXT.sound.turnOff}
-                    aria-pressed={muted}
-                    onClick={() => setMuted(sfx.toggleMuted())}
-                  >
-                    <SoundIcon muted={muted} />
-                  </button>
                 </div>
               </div>
             )}
@@ -367,6 +428,9 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left }) {
             )}
           </>
         )}
+
+        {/* 待机：画面正中那颗开始按钮。结算时它会下移，让开 GAME OVER 那行字 */}
+        {!blocked && action !== 'exitGame' && playButton}
       </div>
 
       {/* 触屏操作：只在游戏进行中出现。放在画布**下面**而不是压在画布上 ——
@@ -412,16 +476,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left }) {
             accentLabelR
             animateOnViewportEnter
           />
-          <button
-            className={styles.playButton}
-            type="button"
-            data-button={TEXT.button.variant}
-            disabled={buttonDisabled}
-            data-analytics-click={ANALYTICS[action]}
-            onClick={handleActionClick}
-          >
-            {TEXT.button.label[action]}
-          </button>
+          {action === 'exitGame' && playButton}
         </div>
       )}
     </>

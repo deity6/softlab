@@ -3,6 +3,7 @@ import { clamp } from './utils.js';
 import { shuffle } from './rng.js';
 import { Bug } from './Bug.js';
 import { createPickup } from './Pickup.js';
+import { DEMO_BUGS, DEMO_FLOATS, DEMO_GROUND, DEMO_PICKUPS, demoCell } from './demoLevel.js';
 
 /**
  * 原 `class eq` 里的关卡生成部分。
@@ -51,6 +52,12 @@ export class LevelGenerator {
 
   /** 边生成地形边补拾取物；地面虫子按固定间距铺 */
   generateSceneUntil(untilX) {
+    // 封面演示走预制关卡：内容来自定值表，按 DEMO_SPAN 周期重复
+    if (this.game.demo) {
+      this.generateDemoSceneUntil(untilX);
+      return;
+    }
+
     for (const row of this.game.platformRows) this.generatePlatformRowUntil(row, untilX);
 
     for (const { row, segment } of this.game.pendingPickupSegments) {
@@ -147,14 +154,7 @@ export class LevelGenerator {
   placeRun(startX, desiredY, length, minY, maxY, dir, prevY) {
     const y = this.pickSpacedRunY(startX, desiredY, length, minY, maxY, dir, prevY);
     if (y === undefined) return undefined;
-    for (let i = 0; i < length; i += 1) {
-      const block = this.game.blockField.create(startX + i, y);
-      this.game.blocks.push(block);
-      const x = startX + i;
-      const occupied = this.game.platformYsByX.get(x) ?? new Set();
-      occupied.add(y);
-      this.game.platformYsByX.set(x, occupied);
-    }
+    for (let i = 0; i < length; i += 1) this.placeBlock(startX + i, y);
     return { x: startX, y, length };
   }
 
@@ -311,6 +311,63 @@ export class LevelGenerator {
         maxX,
         true,
       );
+    }
+  }
+
+  /** 铺一块地形并登记到 `platformYsByX` —— `placeRun` 与预制关卡共用的单格版 */
+  placeBlock(x, y) {
+    const block = this.game.blockField.create(x, y);
+    this.game.blocks.push(block);
+    const occupied = this.game.platformYsByX.get(x) ?? new Set();
+    occupied.add(y);
+    this.game.platformYsByX.set(x, occupied);
+    return block;
+  }
+
+  /* ---------------------------------------------------------------------- *
+   * 封面演示：预制关卡
+   * ---------------------------------------------------------------------- */
+
+  /**
+   * 和 `createLevel()` 结构相同（只填下排、上排留空），内容换成
+   * `demoLevel.js` 里的定值表。没有 PRNG 参与，所以每一轮铺出来的一模一样。
+   */
+  createDemoLevel() {
+    this.game.platformRows = [];
+    this.game.pendingPickupSegments = [];
+    this.game.demoBuiltX = 0;
+    // 铺到「当前 scrollX 之后一屏再多」而不是从 0 铺固定长度 —— 回卷之后
+    // scrollX 已经不是 0 了，只铺 GRID_X + 80 会让画面右侧凭空少一截地形。
+    this.generateDemoSceneUntil(this.game.scrollX + GRID_X + 80);
+  }
+
+  generateDemoSceneUntil(untilX) {
+    const game = this.game;
+    while (game.demoBuiltX < untilX) {
+      const x = game.demoBuiltX;
+      const cell = demoCell(x);
+
+      const ground = DEMO_GROUND[cell];
+      if (ground !== null) this.placeBlock(x, ground);
+
+      const float = DEMO_FLOATS[cell];
+      if (float !== null) this.placeBlock(x, float);
+
+      const pickupY = DEMO_PICKUPS[cell];
+      if (pickupY !== null) {
+        // size 与原站程序化关卡一致：普通 1 格。写 3 会变成 9 块拼成的大方块。
+        const pickup = createPickup(x, pickupY, 1, false);
+        game.worldGroup.add(pickup.mesh);
+        game.pickups.push(pickup);
+      }
+
+      const bug = DEMO_BUGS[cell];
+      if (bug !== null) {
+        // 站在地面方块上方一格；巡逻界来自关卡表，保证它一直在同一段平地上
+        this.addBug(x, bug.y + 1, x % 2 === 0 ? 1 : -1, bug.minX, bug.maxX);
+      }
+
+      game.demoBuiltX = x + 1;
     }
   }
 

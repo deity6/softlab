@@ -718,6 +718,71 @@ canvas {
   height: 100%;
 }
 
+/* ---- Mona 卡片的加载条 ----
+   The cover is the one thumbnail that has to fetch anything (three.js plus the
+   game), so it gets a bar. Six trail colours as a band across the card, with
+   the character riding its leading edge — the same palette the in-game trails
+   use, and the same sprite sheet. */
+.mona-thumb__loader {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  background: var(--paper-lift);
+  transition: opacity 0.4s ease-out;
+}
+
+.mona-thumb__loader[data-ready='true'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mona-thumb__track {
+  position: relative;
+  width: 100%;
+  height: 26px;
+  overflow: hidden;
+  /* 没加载到的那一段就是灰的 */
+  background: rgb(140 148 160 / 0.26);
+}
+
+.mona-thumb__fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #5fed83, #bba00a, #ae85ff, #f73678, #c05200, #583af7);
+  clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0);
+  transition: clip-path 0.12s linear;
+}
+
+/* 角色骑在进度前沿上，用精灵图第 2 行的走路帧（5–7）做原地跑动 */
+.mona-thumb__runner {
+  position: absolute;
+  top: 50%;
+  width: 26px;
+  height: 27px;
+  margin: -13px 0 0 -13px;
+  background-image: url(../experiments/super-mona/assets/UniverseGameSet_01.png);
+  background-repeat: no-repeat;
+  background-size: 130px 135px;
+  background-position: 0 -27px;
+  animation: monaThumbRun 0.36s steps(3) infinite;
+  transition: left 0.12s linear;
+  image-rendering: pixelated;
+}
+
+@keyframes monaThumbRun {
+  to {
+    background-position-x: -78px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mona-thumb__runner {
+    animation: none;
+  }
+}
+
 /* The Mona card's cover is the real game running (see `MonaThumb`), so it fills
    the card like any other thumbnail. No `aspect-ratio` is pinned here on
    purpose: the demo camera fixes the number of *rows* on screen and lets the

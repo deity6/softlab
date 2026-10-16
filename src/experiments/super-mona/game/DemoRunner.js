@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CELL, GRID_X, GRID_Y } from './constants.js';
 import { Game } from './Game.js';
+import { DEMO_SPAN, DEMO_SPEED } from './demoLevel.js';
 
 /**
  * 实验卡片封面上的那段演示。
@@ -32,9 +33,7 @@ const CLEAR_COLOR = 0xe9edec;
  * ⚠️ 高度定标、宽度自适应 —— 不是反过来。卡片宽度随断点变（单列时能到 400px），
  *    如果按宽度定取景，Mona 的像素大小会跟着卡片宽度漂。按高度定，它恒定。
  */
-const VIEW_H = 20;
-/** 取景框底边落在第几格：地面之下还有两格空网格，不占画面 */
-const VIEW_BOTTOM = 2;
+const VIEW_H = 26;
 
 export class DemoRunner {
   constructor(canvas) {
@@ -43,6 +42,7 @@ export class DemoRunner {
     this.active = true;
     this.w = 0;
     this.h = 0;
+    this.scale = 0;
     this.restartIn = -1;
     this.game = null;
 
@@ -70,7 +70,12 @@ export class DemoRunner {
 
   spawn() {
     // 第一个参数是状态回调 —— 封面不显示 HUD，所以吞掉
-    const game = new Game(() => {}, { autoPlay: true, silent: true });
+    const game = new Game(() => {}, {
+      autoPlay: true,
+      silent: true,
+      // 预制关卡 + 恒定速度 —— 封面要的是「每次一模一样、看着舒服、能循环」
+      demo: { span: DEMO_SPAN, speed: DEMO_SPEED },
+    });
     this.rig.add(game.group);
     this.game = game;
     this.applyView();
@@ -84,11 +89,19 @@ export class DemoRunner {
     this.game = null;
   }
 
+
+
+  /** 卡片离开视口就停 —— 首页可能同时挂着好几张 */
+  setActive(active) {
+    this.active = active;
+    if (active) this.clock.getDelta(); // 丢掉暂停期间累积的时间
+  }
+
   /**
    * 尺寸与取景一起定。
    *
    * `Game.resize(width)` 只是 `group.scale.set(width, width, 1)` —— 世界宽恒为 1，
-   * 所以传进去的其实是「一个世界单位占多少像素」。想放大就传大一点。
+   * 所以传进去的其实是「一个世界单位占多少像素」，想放大就传大一点。
    */
   applyView() {
     if (this.w <= 0 || this.h <= 0) return;
@@ -96,21 +109,16 @@ export class DemoRunner {
     // 竖直恒定 VIEW_H 格，水平按画布实际比例铺开 —— 比例天然对齐，画面不会被拉伸
     const viewW = (VIEW_H * this.w) / this.h;
     const s = (this.w * GRID_X) / viewW; // 世界 1 单位 = s 像素
+    this.scale = s;
     this.game?.resize(s);
 
     // 水平：取景框钉在 scrollX 那一格。`worldGroup` 整体左移了 scrollX 格，
     // 所以「第 scrollX 格」落在世界 x = -0.5，rig 右移半个（放大后的）世界宽即可。
     this.rig.position.x = -this.w / 2 + 0.5 * s;
 
-    // 竖直：让取景框底边落在第 VIEW_BOTTOM 格
-    const bottomY = VIEW_BOTTOM * CELL - (GRID_Y * CELL) / 2;
-    this.rig.position.y = -(bottomY + this.h / s / 2) * s;
-  }
-
-  /** 卡片离开视口就停 —— 首页可能同时挂着好几张 */
-  setActive(active) {
-    this.active = active;
-    if (active) this.clock.getDelta(); // 丢掉暂停期间累积的时间
+    // 竖直完全固定：整幅 26 格就在这里，不跟角色、也不跟她脚下的地面。
+    // 世界高 26 格，画面中心正对世界中心，所以位移就是 0 —— 背景网格因此纹丝不动。
+    this.rig.position.y = 0;
   }
 
   resize() {
