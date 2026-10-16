@@ -356,18 +356,6 @@
   .heroEyebrow > div {
     font-size: 12px;
   }
-
-  .playButton {
-    width: 100%;
-  }
-
-  /* 居中那颗不受「撑满整行」影响 —— 它本来就该是个居中的胶囊，不是一条横幅 */
-  .playButtonHero {
-    width: auto;
-    min-width: min(240px, 74%);
-    min-height: 54px;
-    padding: 0 32px;
-  }
 }
 
 .heroEyebrow {
@@ -386,73 +374,31 @@
   white-space: nowrap;
 }
 
-/* Play / Exit game 按钮。
-   原本是逐条照搬原站的 Primer `Button variant="secondary"`：`padding:16px` +
-   `min-height:43px` + `backdrop-filter: blur(20px)`，算下来 66 × 56px —— 一个
-   带毛玻璃的厚按钮，放在这块浅色网格上太沉。按用户要求改简洁：白底细边、
-   定高 40px、横向留白，hover 直接反色；圆角和配色都收进画面的方块语言。 */
-.playButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 40px;
-  padding: 0 18px;
-  border: 1px solid #b6bfb8;
-  border-radius: 4px;
-  background-color: #fff;
-  color: #0d1117;
-  font-family: var(--brand-fontStack-sansSerif);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color 0.15s ease-out, border-color 0.15s ease-out,
-    color 0.15s ease-out;
-}
+/* 像素动作字（PLAY / EXIT / PLAY AGAIN）的位置。外观全在 `PixelAction.module.css`
+   —— 它没有底、没有边，所以这里只负责把它放对地方。
 
-.playButton:hover:not(:disabled) {
-  background-color: #0d1117;
-  border-color: #0d1117;
-  color: #fff;
-}
-
-.playButton:focus-visible {
-  outline: 2px solid #08872b;
-  outline-offset: 2px;
-}
-
-.playButton:disabled {
-  border-color: #d2d9d4;
-  background-color: #f4f6f5;
-  color: #9aa4a0;
-  cursor: not-allowed;
-}
-
-/* 待机 / 结算时那颗大按钮：压在画面正中。
-   原先它和眉标一起排在画布下面那条栏里，看着像页脚链接 —— 而它其实是这一屏
-   唯一该被看见的东西。放大到接近 GAME OVER 那行字的视觉重量，但不挡画面。 */
-.playButtonHero {
-  position: absolute;
+   为什么位置要单独管：三种状态各自要避开不同的东西，而它们是同一个组件。 */
+.pixelPlay,
+.pixelPlayAgain {
   left: 50%;
-  top: 50%;
   transform: translate(-50%, -50%);
-  z-index: 4;
-  justify-content: center;
-  min-width: min(260px, 54%);
-  min-height: 58px;
-  padding: 0 44px;
-  font-size: clamp(16px, 1.6vmin + 9px, 21px);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  border-width: 1.5px;
-  box-shadow: 0 8px 26px rgb(0 0 0 / 0.1);
 }
 
-/* 结算：GAME OVER 那行像素字落在画面中下部，按钮让到它下面 */
-.playButtonHero[data-action='playAgain'] {
-  top: 80%;
+/* 待机：中下部。放正中会盖住那颗转头看你的 Mona；放底部又会被误读成页脚 */
+.pixelPlay {
+  top: 64%;
+}
+
+/* 结算：`GAME OVER` 那行像素字落在画面下半部（约 76%–95%），所以让到它**上面**。
+   先前那颗白底大按钮正好压在字上，把 OVER 遮掉一半 —— 用户截图里就是这个。 */
+.pixelPlayAgain {
+  top: 56%;
+}
+
+/* 游戏中：右下角。让开角色、地面和虫子 —— 这一屏的主角是那局游戏，不是一个出口 */
+.pixelExit {
+  right: 3.5%;
+  bottom: 7%;
 }
 
 @keyframes hudEnter {

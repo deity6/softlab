@@ -135,9 +135,6 @@ const zh = {
   'mona.back': '返回列表',
   'mona.bar.note': '网格跑酷 · 按开始才变成游戏',
   'mona.rotate': '把手机横过来玩 · 这是横版跑酷',
-  'mona.btn.play': '开始游戏',
-  'mona.btn.exit': '退出游戏',
-  'mona.btn.again': '再来一局',
   'mona.more': '单独打开这个项目',
   'mona.moreNote': '含官网拆解 · 精灵图逐帧解剖 · 鼠标拖尾复刻',
 
@@ -547,9 +544,6 @@ const en: Record<MsgKey, string> = {
   'mona.back': 'Back to the list',
   'mona.bar.note': 'grid runner · press play to turn it into a game',
   'mona.rotate': 'Turn your phone sideways · it is a side-scroller',
-  'mona.btn.play': 'Play',
-  'mona.btn.exit': 'Exit game',
-  'mona.btn.again': 'Play again',
   'mona.more': 'Open the standalone project',
   'mona.moreNote': 'site breakdown · frame-by-frame sprite anatomy · cursor-trail recreation',
 

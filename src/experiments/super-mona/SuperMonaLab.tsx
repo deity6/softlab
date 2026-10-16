@@ -25,18 +25,7 @@ const PROJECT_URL = 'https://super-mona.pages.dev';
  * `aspect-ratio: 94/26`，高度是算出来的。
  */
 export default function SuperMonaLab() {
-  const { lang, t } = useLang();
-
-  /* 复刻组件默认用的是原站的英文文案（`Play` / `Exit game` / `Play again`），
-     中文站点下按当前语言覆盖。埋点串不跟着翻。 */
-  const labels =
-    lang === 'zh'
-      ? {
-          playGame: t('mona.btn.play'),
-          exitGame: t('mona.btn.exit'),
-          playAgain: t('mona.btn.again'),
-        }
-      : undefined;
+  const { t } = useLang();
 
   return (
     <div className="exp-page mona-scope">
@@ -55,7 +44,7 @@ export default function SuperMonaLab() {
       {/* 竖屏提示由组件自己盖在画布上（`.rotateHint`）—— 放在这里会连整块实验区
           一起盖住，而实验页在竖屏下有很多空白，一进来就是一大片白。 */}
       <div className="lab lab--mona">
-        <SuperMona labels={labels} portraitHint={t('mona.rotate')} />
+        <SuperMona portraitHint={t('mona.rotate')} />
       </div>
 
       {/* 项目联动：这里只是「能玩」的一小块，完整的那个项目单开了一站 ——

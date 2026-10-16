@@ -1,0 +1,98 @@
+/* 像素动作字（PLAY / EXIT / PLAY AGAIN）。
+   刻意什么都不给：没有底、没有边、没有圆角、没有阴影 —— 它和 GAME OVER 那行字
+   是同一种东西，只是小一圈、颜色会动。存在的证明全靠交互：
+   悬浮时整行由灰渐变到彩虹，点击后从中心炸开散掉。
+
+   `overflow: visible` 是必须的：绽放时方块要飞出自己的包围盒。 */
+.root {
+  position: absolute;
+  z-index: 4;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow: visible;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 每一格。颜色取的是 GAME OVER 那行字的 `TYPE_COLOR`（0x57615b）——
+   同一屏里两行字必须是同一个灰，否则一眼看出是两套东西。 */
+.blk {
+  position: absolute;
+  width: var(--blk);
+  height: var(--blk);
+  background: #57615b;
+  /* 逐块延迟 → 变色是一道扫过去的波，而不是整行一起亮 */
+  transition: background-color 0.42s cubic-bezier(0.25, 0.6, 0.3, 1);
+  transition-delay: calc(var(--i) * 5ms);
+  will-change: transform;
+}
+
+/* 悬浮：由灰渐变到彩虹，并在色相上慢慢流动。
+   `--h` 按方块位置铺开，`hue-rotate` 的负延迟让每块相位错开 ——
+   合起来是一道横着淌过去的彩带，而不是整行同色闪烁。 */
+@media (hover: hover) and (pointer: fine) {
+  .root:hover:not(:disabled) .blk,
+  .root:focus-visible:not(:disabled) .blk {
+    background: hsl(calc(var(--h) * 1deg) 78% 57%);
+    animation: pixelHue 3.2s linear infinite;
+    animation-delay: calc(var(--i) * -0.09s);
+  }
+}
+
+@keyframes pixelHue {
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+/* 点击后的绽放。规则写在 hover 之后 —— 两者特异性相同（都是
+   `属性/伪类 + .blk`），靠顺序决定谁赢，放前面会被 hover 的 animation 盖掉。 */
+.root[data-bloom] .blk {
+  background: hsl(calc(var(--h) * 1deg) 82% 58%);
+  animation: pixelBloom 0.62s cubic-bezier(0.22, 0.68, 0.3, 1) both;
+  animation-delay: calc(var(--i) * 3ms);
+  pointer-events: none;
+}
+
+/* 从中心向外：先微微放大（0 → 26%），再一边飞远一边缩没。
+   中途那下放大是「绽放」的关键 —— 只是一直缩小的话，看着像褪色而不是炸开。 */
+@keyframes pixelBloom {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  26% {
+    transform: translate(calc(var(--dx) * var(--blk) * 0.42), calc(var(--dy) * var(--blk) * 0.42))
+      scale(1.5);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--dx) * var(--blk)), calc(var(--dy) * var(--blk))) scale(0);
+    opacity: 0;
+  }
+}
+
+.root:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+/* 键盘可达性：方块本身没法描边，用容器的焦点环代替 */
+.root:focus-visible {
+  outline: 2px solid #08872b;
+  outline-offset: 6px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blk {
+    transition: none;
+  }
+  .root[data-bloom] .blk {
+    animation-duration: 0.01ms;
+  }
+}

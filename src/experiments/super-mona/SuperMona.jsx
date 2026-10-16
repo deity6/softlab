@@ -12,6 +12,7 @@ import {
 import { Engine } from './game/Engine.js';
 import { sfx } from './game/Sfx.js';
 import { Eyebrow } from './Eyebrow.jsx';
+import { PixelAction } from './PixelAction.jsx';
 import styles from './SuperMona.module.css';
 
 const INITIAL_STATE = {
@@ -25,6 +26,23 @@ const INITIAL_STATE = {
 };
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
+
+/**
+ * 动作按钮上的字。
+ *
+ * 刻意**不做 i18n** —— 用户明确说「开始游戏就不用翻译了，PLAY 反而好写」。
+ * 字模里只有大写字母，所以这三个词也大写；`PLAY AGAIN` 中间那个空格是有意义的
+ * （排版时按词间距 3 格处理，不是字间距 1 格）。
+ */
+const ACTION_TEXT = { playGame: 'PLAY', exitGame: 'EXIT', playAgain: 'PLAY AGAIN' };
+
+/**
+ * 像素方块相对一格的尺寸。
+ *
+ * `GAME OVER` 那行字用的是 `0.95` 格（原站 `TYPE_CELL`）；动作字比它小一圈 ——
+ * 这是用户要的「小一些」，也是结算时两行字能并排放在同一屏的前提。
+ */
+const PIXEL_CELL_RATIO = 0.62;
 
 /** 原 `te` */
 function detectWebgl() {
@@ -126,7 +144,7 @@ function usePortrait() {
   return portrait;
 }
 
-export function SuperMona({ eyebrow = TEXT.eyebrow.left, labels, portraitHint }) {
+export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
   const wrapperRef = useRef(null);
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
@@ -151,6 +169,27 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, labels, portraitHint })
       typeof window !== 'undefined' &&
       window.matchMedia('(hover: none) and (pointer: coarse)').matches,
   );
+
+  /**
+   * 像素动作字的方块尺寸。
+   *
+   * 画布是按「一格 = 画布宽 / 94」渲染的（`group.scale` 让世界宽恒为 1 个单位，
+   * 正交相机取 [-1, 1]），所以量一下画布宽度就能反推一格多少像素。必须跟着这个
+   * 比例走 —— 否则像素字和背景网格对不上，一眼能看出是浮在上面的一层。
+   */
+  const [blockPx, setBlockPx] = useState(0);
+  useEffect(() => {
+    const root = wrapperRef.current;
+    if (!root) return undefined;
+    const measure = () => {
+      const canvas = root.querySelector('canvas') || root;
+      setBlockPx((canvas.getBoundingClientRect().width / GRID_X) * PIXEL_CELL_RATIO);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
 
   const resetToIdle = useCallback(() => {
     setState(INITIAL_STATE);
@@ -298,12 +337,6 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, labels, portraitHint })
   const eyebrowLeft = highScore === null ? eyebrow : TEXT.eyebrow.highScore;
   const eyebrowRight = highScore === null ? undefined : String(highScore);
 
-  /**
-   * 按钮上显示的字。默认是原站的英文文案；接进 SOFT LAB 之后由调用方按当前语言
-   * 覆盖（`labels`）。埋点串 `ANALYTICS` 不跟着翻 —— 那是给统计看的，和界面语言无关。
-   */
-  const label = { ...TEXT.button.label, ...labels };
-
   const handleActionClick = () => {
     if (state.gameOverScreenVisible) {
       launch(true);
@@ -321,23 +354,29 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, labels, portraitHint })
   };
 
   /**
-   * 开始 / 退出 / 再来一局共用一颗按钮，区别只在位置：
-   *   · 待机与结算时它压在画面正中（`.playButtonHero`）—— 原先挂在画布下面那条
-   *     眉标栏里，看着像页脚链接，看不出「这一屏是个游戏」；
-   *   · 游戏进行中的「退出游戏」留在那条栏里，不挡画面。
+   * 开始 / 退出 / 再来一局共用一行像素字，区别只在文案和位置：
+   *   · 待机与结算时压在中下部（`pixelPlay` / `pixelPlayAgain`）—— 结算时特别让开
+   *     `GAME OVER` 那行字，先前那颗白底按钮正好压在它上面；
+   *   · 游戏进行中的「EXIT」挪到右下角，让开画面。
+   *
+   * 它不再是个按钮：没有底、没有边、没有圆角、没有阴影 —— 和 `GAME OVER` 一模一样
+   * 是像素方块拼的，只是小一圈。唯一的线索是鼠标悬上去会变成彩虹。
    */
-  const playButton = (
-    <button
-      className={`${styles.playButton}${action === 'exitGame' ? '' : ` ${styles.playButtonHero}`}`}
-      type="button"
-      data-button={TEXT.button.variant}
-      data-action={action}
+  const actionButton = (
+    <PixelAction
+      text={ACTION_TEXT[action]}
+      blockPx={blockPx}
       disabled={buttonDisabled}
-      data-analytics-click={ANALYTICS[action]}
-      onClick={handleActionClick}
-    >
-      {label[action]}
-    </button>
+      analytics={ANALYTICS[action]}
+      className={
+        action === 'exitGame'
+          ? styles.pixelExit
+          : action === 'playAgain'
+            ? styles.pixelPlayAgain
+            : styles.pixelPlay
+      }
+      onActivate={handleActionClick}
+    />
   );
 
   return (
@@ -429,8 +468,9 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, labels, portraitHint })
           </>
         )}
 
-        {/* 待机：画面正中那颗开始按钮。结算时它会下移，让开 GAME OVER 那行字 */}
-        {!blocked && action !== 'exitGame' && playButton}
+        {/* 像素动作字。三种状态都在画布内 —— 待机的中下部、结算时让开 GAME OVER、
+            游戏中的右下角。位置由各自的 class 给（见 SuperMona.module.css）。 */}
+        {!blocked && actionButton}
       </div>
 
       {/* 触屏操作：只在游戏进行中出现。放在画布**下面**而不是压在画布上 ——
@@ -476,7 +516,6 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, labels, portraitHint })
             accentLabelR
             animateOnViewportEnter
           />
-          {action === 'exitGame' && playButton}
         </div>
       )}
     </>
