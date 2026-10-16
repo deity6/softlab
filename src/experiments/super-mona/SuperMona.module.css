@@ -515,7 +515,7 @@
   }
 
   /* 眉标在窄屏下会折行、直接盖住画面，而且它只是原站的装饰文案 —— 收掉 */
-  [data-compact] .heroEyebrow {
+  .actions[data-compact] .heroEyebrow {
     display: none;
   }
 
@@ -530,13 +530,13 @@
 
   /* 按键后面现在是游戏画面（原先它下面只有空白），底色调淡一点让角色透出来。
      只降透明度、不动 56px 的尺寸 —— 触控目标的大小是可用性底线。 */
-  [data-compact] .touchKey {
+  .touchPad[data-compact] .touchKey {
     background: rgb(255 255 255 / 0.6);
   }
 
   /* 动作字回到画布内：待机与结算居中（原来在画布下面那条栏里） */
-  [data-compact] .actions .pixelPlay,
-  [data-compact] .actions .pixelPlayAgain {
+  .actions[data-compact] .pixelPlay,
+  .actions[data-compact] .pixelPlayAgain {
     position: absolute;
     left: 50%;
     top: 50%;
@@ -549,7 +549,7 @@
 
   /* 游戏中退到右上角，让开虚拟按键和角色；`top: 52px` 是给上面那枚 32px 的音效
      开关让位（它固定在 right/top 各 10px） */
-  [data-compact] .actions .pixelExit {
+  .actions[data-compact] .pixelExit {
     position: absolute;
     right: 10px;
     top: 52px;
@@ -581,7 +581,7 @@
   }
 
   /* 结算时那枚 SUBMIT 也叠进画布（站 EXIT 的位置 —— 结算时 EXIT 本来就不出现） */
-  [data-compact] .actions .submitBadge {
+  .actions[data-compact] .submitBadge {
     position: absolute;
     right: 10px;
     top: 52px;

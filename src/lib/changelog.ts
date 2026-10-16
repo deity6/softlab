@@ -33,6 +33,8 @@ export const ENTRIES: ChangeEntry[] = [
       '⚠️ 修：叠在画布上那层是 pointer-events: none（否则会挡住画布上的交互），但里面的动作字忘了把事件收回来 —— 表现就是 PLAY / EXIT 看得见、点不动',
       '⚠️ 那层还必须是 inset: 0 铺满画布。只贴底部的话它只有 20px 高，里面用 top: 52px 定位的按钮会算到画布外面（DOM 在、坐标也对，页面上什么都没有）',
       '⚠️ data-compact 挂在 wrapper 上没用 —— 那条下方栏和虚拟按键其实在 wrapper 外面，得把属性挂在它们自己身上',
+      '⚠️ 更隐蔽的一处：属性挪到 `.actions` 自己身上之后，它**后代**的选择器还写着 `[data-compact] .actions .pixelPlay` —— 那是在找「有属性的祖先」，而属性就在 `.actions` 上，所以整条规则一条都没匹配，`pointer-events` 压根没开回来。后代要写 `.actions[data-compact] .pixelPlay`',
+      '⚠️ 上一版验证用了 `el.click()`：它是程序化触发，**会绕过 pointer-events 的命中测试**，所以「看得见点不动」它测不出来。现在改用 CDP 派发真实触摸事件，并断言 `getComputedStyle(...).pointerEvents` 与 `elementFromPoint` 命中的元素',
     ],
   },
   {
