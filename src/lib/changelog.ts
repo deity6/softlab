@@ -30,6 +30,7 @@ export const ENTRIES: ChangeEntry[] = [
     title: '实验 04 有了排行榜：结算时可以上传成绩，看全站前 20 名',
     items: [
       '结算时下方栏右侧会浮出一枚金色的 SUBMIT 像素字，点开填名字就能上榜 —— 不点则一个字节都不发出去',
+      '画布上方那条信息带的**左上角**还有一枚金色 TOP：不进游戏也能直接看榜（榜单本来就该是所有人都能看的）',
       '榜单在弹层的「TOP」页签里，按分数降序排列，同一个名字只留最好的一局',
       '像素字模补齐了 S / U / B / C 四个字母（「SUBMIT / SCORE」比原先那批动作字要多几个字符）',
       '⚠️ 排行榜的**后端不在这个仓库里**（Cloudflare Pages Functions + D1，被 .gitignore 排除）。这个仓库保持纯静态前端 —— clone 下来不需要任何凭据就能构建运行，游戏本体完全可用，只是提交按钮会回一句 LEADERBOARD IS OFFLINE HERE。详见 README',

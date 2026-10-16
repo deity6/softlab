@@ -46,8 +46,8 @@ const formatDuration = (seconds) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 };
 
-export function ScoreBoard({ run, blockPx, onClose }) {
-  const [tab, setTab] = useState('submit');
+export function ScoreBoard({ run, blockPx, onClose, initialTab = 'submit' }) {
+  const [tab, setTab] = useState(initialTab);
   const [name, setName] = useState(readSavedName);
   const [phase, setPhase] = useState('idle');
   const [errorKey, setErrorKey] = useState(null);

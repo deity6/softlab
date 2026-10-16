@@ -193,6 +193,8 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
    */
   const [boardOpen, setBoardOpen] = useState(false);
   const [boardRun, setBoardRun] = useState(null);
+  /** 弹层打开时停在哪个页签 —— 从左上角 TOP 进来直接看榜，从结算的 SUBMIT 进来先填名字 */
+  const [boardTab, setBoardTab] = useState('submit');
   useEffect(() => {
     if (!topBar || touchInput) return undefined;
     const down = (e) => {
@@ -404,8 +406,9 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
    * 记录**在这一刻**才从游戏里取 —— 结算动画走完、事件流已经定型。不点的话，
    * `getRun()` 永远不会被调用，也就没有任何东西会离开这台机器。
    */
-  const openBoard = () => {
+  const openBoard = (tab = 'submit') => {
     setBoardRun(engineRef.current?.game?.getRun() ?? null);
+    setBoardTab(tab);
     setBoardOpen(true);
     sfx.play('uiClick');
   };
@@ -519,6 +522,18 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
           负 margin 让它不占位：画布位置一点不动，它自己浮在上方那段留白里。 */}
       {topBar && !blocked && (
         <div className={styles.topBar}>
+          {/* 左上角：看榜入口。**不进游戏也能点** —— 结算时那枚金色 SUBMIT 要先玩完
+              一局才出现，而排行榜本身是所有访问者都能看的。 */}
+          {board && (
+            <button
+              type="button"
+              className={styles.topBarRank}
+              onClick={() => openBoard('top')}
+              aria-label={BOARD_TEXT.topTitle}
+            >
+              <PixelWord text={BOARD_TEXT.top} blockPx={blockPx * 0.5} tone="gold" />
+            </button>
+          )}
           {scoreEl}
           {!touchInput && <div className={styles.topBarKeys}>{controlsEl}</div>}
           {soundEl}
@@ -661,7 +676,12 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
       {/* 排行榜弹层。用 fixed 覆盖整个视口（见 `ScoreBoard.module.css`）——
           画布只有 94:26 那么扁，输入框和榜单塞不进去。 */}
       {board && boardOpen && (
-        <ScoreBoard run={boardRun} blockPx={blockPx} onClose={() => setBoardOpen(false)} />
+        <ScoreBoard
+          run={boardRun}
+          blockPx={blockPx}
+          initialTab={boardTab}
+          onClose={() => setBoardOpen(false)}
+        />
       )}
     </>
   );

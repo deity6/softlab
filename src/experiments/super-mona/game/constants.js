@@ -328,6 +328,8 @@ export const BOARD = {
 
 export const BOARD_TEXT = {
   submit: 'SUBMIT',
+  /** 左上角那枚看榜入口。用 `TOP` 而不是 `RANK` —— 字模里没有 K */
+  top: 'TOP',
   submitTitle: 'SUBMIT SCORE',
   topTitle: 'TOP SCORES',
   nameHint: 'A–Z 0–9, UP TO 12',

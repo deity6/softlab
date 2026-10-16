@@ -139,6 +139,35 @@
   transform: translateY(-50%);
 }
 
+/* 左上角那枚 `TOP` —— 看榜入口。
+   它和结算时那枚金色 SUBMIT 是一对：同一个像素字模、同样没有底和边，位置一左一右。
+   区别在于它**不进游戏也能点**：SUBMIT 要玩完一局才出现，而排行榜本身是所有访问者
+   都能看的。 */
+.topBarRank {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: filter 0.28s ease-out;
+}
+
+.topBarRank:hover,
+.topBarRank:focus-visible {
+  filter: brightness(1.1) saturate(1.1);
+  --pixel-gleam-dur: 1.25s;
+  --pixel-gleam-stagger: 11ms;
+}
+
+.topBarRank:focus-visible {
+  outline: 2px solid #e8b44a;
+  outline-offset: 3px;
+}
+
 /* 条里的按键指引按静态流排 —— 外面那条规则带绝对定位，是给「栏内居中」用的 */
 .topBarKeys .controls {
   position: static;
