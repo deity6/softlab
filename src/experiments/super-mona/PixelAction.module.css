@@ -16,11 +16,15 @@
 }
 
 /* 每一格。颜色取的是 GAME OVER 那行字的 `TYPE_COLOR`（0x57615b）——
-   同一屏里两行字必须是同一个灰，否则一眼看出是两套东西。 */
+   同一屏里两行字必须是同一个灰，否则一眼看出是两套东西。
+
+   块本身只占格子的 **95%**，和 `GAME OVER` 的 `TYPE_CELL = 0.95 * CELL` 对齐 ——
+   那 5% 的缝是「点阵」这个观感的来源，铺满就变成色块拼贴了。方块在格子内居中
+   （偏移在 JS 里补），和 `placeMatrix` 的居中一致。 */
 .blk {
   position: absolute;
-  width: var(--blk);
-  height: var(--blk);
+  width: calc(var(--blk) * 0.95);
+  height: calc(var(--blk) * 0.95);
   background: #57615b;
   /* 逐块延迟 → 变色是一道扫过去的波，而不是整行一起亮 */
   transition: background-color 0.42s cubic-bezier(0.25, 0.6, 0.3, 1);

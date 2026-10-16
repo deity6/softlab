@@ -39,10 +39,11 @@ const ACTION_TEXT = { playGame: 'PLAY', exitGame: 'EXIT', playAgain: 'PLAY AGAIN
 /**
  * 像素方块相对一格的尺寸。
  *
- * `GAME OVER` 那行字用的是 `0.95` 格（原站 `TYPE_CELL`）；动作字比它小一圈 ——
- * 这是用户要的「小一些」，也是结算时两行字能并排放在同一屏的前提。
+ * `GAME OVER` 那行字用的是 `0.95` 格（原站 `TYPE_CELL`）。动作字比它小得多 —— 它们
+ * 待在画布下面那条栏里，得整行放得下：`0.42` 格时 `PLAY AGAIN`（全表最长的词）
+ * 约占画布宽的四分之一，高度约 40px，落在栏的可用高度里。
  */
-const PIXEL_CELL_RATIO = 0.62;
+const PIXEL_CELL_RATIO = 0.42;
 
 /** 原 `te` */
 function detectWebgl() {
@@ -427,26 +428,16 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
                     <img key={i} className={styles.heart} src={ASSETS.heart} alt="" aria-hidden />
                   ))}
                 </span>
-                <p
-                  className={showControls ? styles.controls : `${styles.controls} ${styles.controlsHidden}`}
-                  aria-hidden={!showControls}
-                >
-                  <span className={styles.controlAction}>
-                    <kbd className={styles.controlKey}>←</kbd>
-                    <kbd className={styles.controlKey}>→</kbd>
-                    <span>move</span>
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span className={styles.controlAction}>
-                    <kbd className={styles.controlKey}>Space</kbd>
-                    <span>jump</span>
-                  </span>
-                </p>
+                {/* 分数占中间那一栏（用户要求「放在中间顶部」）。它原来在最右，
+                    右边紧挨着音效开关，看着像那枚开关的附注而不是这一局的成绩。 */}
                 <div className={styles.scoreControls}>
                   <span className={styles.score}>Your score: {state.score}</span>
                 </div>
               </div>
             )}
+
+            {/* 控制提示搬到了画布下面那条栏里（见 `actions`）—— 顶部中间那一栏
+                让给分数了，而栏的中间在游戏中正好空着，且压在画面上会挡角色。 */}
 
             {state.gameOverScreenVisible && (
               <div
@@ -467,10 +458,6 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
             )}
           </>
         )}
-
-        {/* 像素动作字。三种状态都在画布内 —— 待机的中下部、结算时让开 GAME OVER、
-            游戏中的右下角。位置由各自的 class 给（见 SuperMona.module.css）。 */}
-        {!blocked && actionButton}
       </div>
 
       {/* 触屏操作：只在游戏进行中出现。放在画布**下面**而不是压在画布上 ——
@@ -516,6 +503,31 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
             accentLabelR
             animateOnViewportEnter
           />
+          {/* 动作字放在这条栏里，不进画面：居中（PLAY / PLAY AGAIN）或靠右（EXIT）。
+              它们绝对是定位的，不占 flex 位置，眉标该多宽还是多宽。 */}
+          {actionButton}
+
+          {/* 控制提示也在这条栏里，居中。它原来占着 HUD 的第二栏（顶部中间），
+              而那一栏现在归分数了；挪到画面里试过，正好压在角色和地面上。 */}
+          {showScoreBoard && !state.gameOver && (
+            <p
+              className={
+                showControls ? styles.controls : `${styles.controls} ${styles.controlsHidden}`
+              }
+              aria-hidden={!showControls}
+            >
+              <span className={styles.controlAction}>
+                <kbd className={styles.controlKey}>←</kbd>
+                <kbd className={styles.controlKey}>→</kbd>
+                <span>move</span>
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className={styles.controlAction}>
+                <kbd className={styles.controlKey}>Space</kbd>
+                <span>jump</span>
+              </span>
+            </p>
+          )}
         </div>
       )}
     </>

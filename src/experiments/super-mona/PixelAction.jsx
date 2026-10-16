@@ -51,6 +51,9 @@ export function PixelAction({
 
   const centerX = (cols - 1) / 2;
   const centerY = (rows - 1) / 2;
+  // 方块只占格子的 95%（见 CSS），所以在格子内居中要补半个间隙 —— `GAME OVER`
+  // 那边是 `placeMatrix` 居中的，两边得一致。
+  const inset = blockPx * 0.025;
 
   return (
     <button
@@ -77,8 +80,8 @@ export function PixelAction({
             key={`${b.x}:${b.y}`}
             className={styles.blk}
             style={{
-              left: `${b.x * blockPx}px`,
-              top: `${b.y * blockPx}px`,
+              left: `${b.x * blockPx + inset}px`,
+              top: `${b.y * blockPx + inset}px`,
               '--i': i,
               // 色相按位置铺开：横着走一圈彩虹，纵向上再偏一点，免得整行同色
               '--h': (b.x * 11 + b.y * 24) % 360,

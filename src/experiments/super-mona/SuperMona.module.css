@@ -60,7 +60,17 @@
 
 /* 操作提示整行。原站不给字号（继承 16px），压在 22px 的键帽旁边偏大；
    收成 13px，让「← → move · Space jump」读起来是一整句而不是四块东西。 */
+/* 操作提示整行。原站不给字号（继承 16px），压在 22px 的键帽旁边偏大；
+   收成 13px，让「← → move · Space jump」读起来是一整句而不是四块东西。
+
+   位置：**画布下面那条栏**里居中。它原来占着 HUD 的第二栏（顶部中间），而那一栏
+   现在归分数了；试过挪到画面底部，正好压在角色和地面上 —— 栏的中间在游戏中恰好
+   空着（PLAY 只在待机和结算时出现，EXIT 靠右）。 */
 .controls {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -70,11 +80,13 @@
   font-size: 13px;
   text-align: center;
   white-space: nowrap;
-  transition: transform 0.45s ease-in;
+  transition: opacity 0.35s ease-in, transform 0.35s ease-in;
 }
 
+/* 跳过一次之后淡出。在栏里没有「滑出画面」的余地，所以只做淡出加一点下沉 */
 .controlsHidden {
-  transform: translateY(calc(-100% - 32px));
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 6px));
 }
 
 /* ---- 触屏虚拟按键 ---- */
@@ -164,7 +176,9 @@
 .scoreControls {
   display: flex;
   align-items: center;
-  justify-self: end;
+  /* 中间那一栏 —— 用户要求分数「放在中间顶部」。原来是最右（`end`），
+     紧挨着音效开关，看着像那枚开关的附注。 */
+  justify-self: center;
   gap: 16px;
 }
 
@@ -318,6 +332,9 @@
 }
 
 .actions {
+  /* 动作按钮（`.pixelPlay` 等）绝对定位在这一层里 —— 它们不占 flex 的位置，
+     眉标该多宽还是多宽 */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -356,6 +373,16 @@
   .heroEyebrow > div {
     font-size: 12px;
   }
+
+  /* 窄屏下按钮不再绝对定位 —— 眉标那一行会折行，绝对居中正好叠在它上面。
+     改成跟着 flex 流排，居中即可。 */
+  .actions .pixelPlay,
+  .actions .pixelPlayAgain,
+  .actions .pixelExit {
+    position: static;
+    transform: none;
+    align-self: center;
+  }
 }
 
 .heroEyebrow {
@@ -374,31 +401,25 @@
   white-space: nowrap;
 }
 
-/* 像素动作字（PLAY / EXIT / PLAY AGAIN）的位置。外观全在 `PixelAction.module.css`
-   —— 它没有底、没有边，所以这里只负责把它放对地方。
+/* 像素动作字的位置。外观全在 `PixelAction.module.css` —— 它没有底、没有边，
+   这里只负责把它放对地方。
 
-   为什么位置要单独管：三种状态各自要避开不同的东西，而它们是同一个组件。 */
+   三个状态都待在**画布下面那条栏**里，不进画面：`PLAY` / `PLAY AGAIN` 居中、
+   `EXIT` 靠右。放画面里会干扰这一屏的主角 —— 待机时是那颗转头看你的 Mona，
+   游戏中是那局跑酷本身。 */
 .pixelPlay,
 .pixelPlayAgain {
+  position: absolute;
   left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
 }
 
-/* 待机：中下部。放正中会盖住那颗转头看你的 Mona；放底部又会被误读成页脚 */
-.pixelPlay {
-  top: 64%;
-}
-
-/* 结算：`GAME OVER` 那行像素字落在画面下半部（约 76%–95%），所以让到它**上面**。
-   先前那颗白底大按钮正好压在字上，把 OVER 遮掉一半 —— 用户截图里就是这个。 */
-.pixelPlayAgain {
-  top: 56%;
-}
-
-/* 游戏中：右下角。让开角色、地面和虫子 —— 这一屏的主角是那局游戏，不是一个出口 */
 .pixelExit {
-  right: 3.5%;
-  bottom: 7%;
+  position: absolute;
+  right: var(--site-spacing, 24px);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 @keyframes hudEnter {
