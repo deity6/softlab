@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ANALYTICS,
   ASSETS,
-  DIRECTION_KEYS,
+  BOARD,
+  BOARD_TEXT,
+  GAME_KEYS,
   GRID_X,
   GRID_Y,
   LAYOUT_NARROW,
@@ -13,6 +15,8 @@ import { Engine } from './game/Engine.js';
 import { sfx } from './game/Sfx.js';
 import { Eyebrow } from './Eyebrow.jsx';
 import { PixelAction } from './PixelAction.jsx';
+import { PixelWord } from './PixelWord.jsx';
+import { ScoreBoard } from './ScoreBoard.jsx';
 import styles from './SuperMona.module.css';
 
 const INITIAL_STATE = {
@@ -145,12 +149,17 @@ function usePortrait() {
   return portrait;
 }
 
-export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
+/**
+ * `topBar` —— 把分数 / 按键指引 / 音效开关搬到画布**上方**那条空带里。
+ *
+ * 实验室里「画布 + 下方栏」是垂直居中的，上方本来就空着一条（见 `mona.css`），
+ * 白白浪费；独立站没有这条空带（画布上方紧挨着导航），所以那边不开。
+ */
+export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = false, board = false }) {
   const wrapperRef = useRef(null);
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
   const savedRef = useRef(false);
-  const progressRef = useRef({ hasMoved: false, hasJumped: false });
 
   const [supported, setSupported] = useState(detectWebgl);
   const [state, setState] = useState(INITIAL_STATE);
@@ -170,6 +179,44 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
       typeof window !== 'undefined' &&
       window.matchMedia('(hover: none) and (pointer: coarse)').matches,
   );
+
+  /**
+   * 键盘上正按着的键。只服务于顶部那条按键指引 —— 让画面里的键帽跟着手上的
+   * 动作一起亮。触屏设备直接跳过：那里没有键盘，指引本身也不显示。
+   * 用 `Set` 而不是布尔，是因为方向键有两个可能（`ArrowLeft` / `KeyA`）。
+   */
+  const [pressedKeys, setPressedKeys] = useState(() => new Set());
+
+  /**
+   * 排行榜弹层。`boardOpen` 只在玩家点了那枚金色的 `SUBMIT` 之后才为真 ——
+   * 不点就什么都不发生（见 `ScoreBoard` 顶部的说明）。
+   */
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [boardRun, setBoardRun] = useState(null);
+  useEffect(() => {
+    if (!topBar || touchInput) return undefined;
+    const down = (e) => {
+      if (!GAME_KEYS.has(e.code)) return;
+      setPressedKeys((prev) => (prev.has(e.code) ? prev : new Set(prev).add(e.code)));
+    };
+    const up = (e) =>
+      setPressedKeys((prev) => {
+        if (!prev.has(e.code)) return prev;
+        const next = new Set(prev);
+        next.delete(e.code);
+        return next;
+      });
+    // 切走标签页时收不到 keyup，回来键帽会一直亮着
+    const clear = () => setPressedKeys((prev) => (prev.size ? new Set() : prev));
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', clear);
+    };
+  }, [topBar, touchInput]);
 
   /**
    * 像素动作字的方块尺寸。
@@ -230,7 +277,14 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
 
     let engine;
     try {
-      engine = new Engine({ wrapper, canvas, onStateChange });
+      engine = new Engine({
+        wrapper,
+        canvas,
+        onStateChange,
+        // `logRun` 记整局的得分事件流 —— 只有服务端走「重放验分」那套严格校验
+        // 时才需要（`BOARD.includeRun`）。默认的极简校验只看分数和时长，不记。
+        gameOptions: { logRun: board && BOARD.includeRun },
+      });
     } catch (error) {
       report(error?.message ?? 'Super Mona engine failed to start.', error);
       window.setTimeout(() => setSupported(false), 0);
@@ -270,26 +324,33 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
       engine.dispose();
       engineRef.current = null;
     };
-  }, [onStateChange, supported, reducedMotion]);
+  }, [onStateChange, supported, reducedMotion, board]);
 
-  // 玩家既移动过又跳过之后，收起控制提示
+  // 按键指引：待机时就在场，玩家**按过**（松开）任意一个游戏键之后退场。
+  //
+  // ⚠️ 退场要延迟到**松手之后** —— 太早淡出的话，「按下去键帽沉、松开弹回来」
+  //    这段动画根本来不及看（用户反馈过：一按就没了，等于白做）。
+  //    按住不放时一直不消失，松手 500ms 才走。
   useEffect(() => {
-    if (!showScoreBoard || state.gameOver || !showControls) return undefined;
-    const onKey = (event) => {
-      if (DIRECTION_KEYS.includes(event.code)) {
-        progressRef.current.hasMoved = true;
-      } else if (event.code === 'Space') {
-        progressRef.current.hasJumped = true;
-      } else {
-        return;
-      }
-      if (progressRef.current.hasMoved && progressRef.current.hasJumped) {
-        setShowControls(false);
-      }
+    if (!showControls) return undefined;
+    let timer = 0;
+    const onDown = (event) => {
+      if (!GAME_KEYS.has(event.code)) return;
+      window.clearTimeout(timer);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [state.gameOver, showScoreBoard, showControls]);
+    const onUp = (event) => {
+      if (!GAME_KEYS.has(event.code)) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setShowControls(false), 500);
+    };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, [showControls]);
 
   const launch = (restart = false) => {
     const engine = engineRef.current;
@@ -300,7 +361,6 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
     };
     const started = restart ? engine.restartGame(done) : engine.startGame(done);
     if (!started) return;
-    progressRef.current = { hasMoved: false, hasJumped: false };
     setShowControls(true);
     setState(INITIAL_STATE);
     setInGame(true);
@@ -338,7 +398,21 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
   const eyebrowLeft = highScore === null ? eyebrow : TEXT.eyebrow.highScore;
   const eyebrowRight = highScore === null ? undefined : String(highScore);
 
+  /**
+   * 点开排行榜弹层。
+   *
+   * 记录**在这一刻**才从游戏里取 —— 结算动画走完、事件流已经定型。不点的话，
+   * `getRun()` 永远不会被调用，也就没有任何东西会离开这台机器。
+   */
+  const openBoard = () => {
+    setBoardRun(engineRef.current?.game?.getRun() ?? null);
+    setBoardOpen(true);
+    sfx.play('uiClick');
+  };
+
   const handleActionClick = () => {
+    // 方块刚散完，补一下「散开」的声音
+    sfx.play('uiBloom');
     if (state.gameOverScreenVisible) {
       launch(true);
       return;
@@ -363,10 +437,11 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
    * 它不再是个按钮：没有底、没有边、没有圆角、没有阴影 —— 和 `GAME OVER` 一模一样
    * 是像素方块拼的，只是小一圈。唯一的线索是鼠标悬上去会变成彩虹。
    */
+  /* `EXIT` 的方块再小一半 —— 它只是个出口，不该和 `PLAY` 争注意力 */
   const actionButton = (
     <PixelAction
       text={ACTION_TEXT[action]}
-      blockPx={blockPx}
+      blockPx={action === 'exitGame' ? blockPx * 0.5 : blockPx}
       disabled={buttonDisabled}
       analytics={ANALYTICS[action]}
       className={
@@ -376,12 +451,80 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
             ? styles.pixelPlayAgain
             : styles.pixelPlay
       }
+      onPress={() => sfx.play('uiClick')}
       onActivate={handleActionClick}
     />
   );
 
+  const leftPressed = pressedKeys.has('ArrowLeft') || pressedKeys.has('KeyA');
+  const rightPressed = pressedKeys.has('ArrowRight') || pressedKeys.has('KeyD');
+  const jumpPressed = pressedKeys.has('Space') || pressedKeys.has('KeyW');
+
+  /** 分数。两种版式共用：顶部条里居中，或（独立站）留在画布内 HUD 的第二栏。 */
+  const scoreEl = <span className={styles.score}>Your score: {state.score}</span>;
+
+  /** 音效开关。原站把它塞在 HUD 第三格里，而那个 HUD 只在游戏进行中存在 ——
+      于是没开局的时候整页找不到声音开关。提到最外层，待机、游戏中、结算都在。 */
+  const soundEl = (
+    <button
+      className={styles.soundToggle}
+      type="button"
+      aria-label={muted ? TEXT.sound.turnOn : TEXT.sound.turnOff}
+      aria-pressed={muted}
+      onClick={() => setMuted(sfx.toggleMuted())}
+    >
+      <SoundIcon muted={muted} />
+    </button>
+  );
+
+  /**
+   * 按键指引。每个键帽会在**键盘真正按下 / 松开**时下沉变色 —— 手指的动作和
+   * 画面里的提示是一件事，而不是各说各的。
+   *
+   * 文案走简写：等效的键合进同一个键帽（`←A` / `→D`），而不是并排列一串 ——
+   * WASD 和方向键本来就该被当成一回事看。跳跃两个键（`W` / `Space`）合不了，
+   * 单独各占一个。
+   * 触屏设备不显示（那里根本没有键盘，界面下方本来就有虚拟按键）。
+   */
+  const keyCap = (label, down) => (
+    <kbd className={down ? `${styles.controlKey} ${styles.controlKeyDown}` : styles.controlKey}>
+      {label}
+    </kbd>
+  );
+
+  const controlsEl = (
+    <p
+      className={showControls ? styles.controls : `${styles.controls} ${styles.controlsHidden}`}
+      aria-hidden={!showControls}
+    >
+      <span className={styles.controlAction}>
+        {keyCap('←A', leftPressed)}
+        {keyCap('→D', rightPressed)}
+        <span>move</span>
+      </span>
+      <span aria-hidden="true">·</span>
+      <span className={styles.controlAction}>
+        {keyCap('W', jumpPressed)}
+        {keyCap('Space', jumpPressed)}
+        <span>jump</span>
+      </span>
+    </p>
+  );
+
   return (
     <>
+      {/* 顶部信息条：分数（居中）/ 按键指引（右半区中央）/ 音效开关（最右）。
+          ⚠️ 它必须在 wrapper **外面** —— wrapper 带 `overflow: hidden`（要裁画布
+          的圆角与缩放误差），放里面会被整个裁掉，`bottom: 100%` 也救不回来。
+          负 margin 让它不占位：画布位置一点不动，它自己浮在上方那段留白里。 */}
+      {topBar && !blocked && (
+        <div className={styles.topBar}>
+          {scoreEl}
+          {!touchInput && <div className={styles.topBarKeys}>{controlsEl}</div>}
+          {soundEl}
+        </div>
+      )}
+
       <div
         ref={wrapperRef}
         className={styles.wrapper}
@@ -396,19 +539,9 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
           <img className={styles.fallbackImage} src={ASSETS.fallback} alt="" aria-hidden draggable={false} />
         )}
 
-        {/* 音效开关摆在右上角，**待机时也在** —— 原站把它塞在 HUD 的第三格里，
-            而那个 HUD 只在游戏进行中存在，于是没开局的时候整页找不到声音开关。 */}
-        {!blocked && (
-          <button
-            className={styles.soundToggle}
-            type="button"
-            aria-label={muted ? TEXT.sound.turnOn : TEXT.sound.turnOff}
-            aria-pressed={muted}
-            onClick={() => setMuted(sfx.toggleMuted())}
-          >
-            <SoundIcon muted={muted} />
-          </button>
-        )}
+        {/* 音效开关。原站把它塞在 HUD 第三格里，而那个 HUD 只在游戏进行中
+            存在 —— 于是没开局的时候整页找不到声音开关。 */}
+        {!blocked && !topBar && soundEl}
 
         {/* 竖屏挡住这一块 —— 只盖画布，不盖整页。一进来就全屏要求横屏，别人
             连这是个什么网站都还没看明白。 */}
@@ -428,11 +561,9 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
                     <img key={i} className={styles.heart} src={ASSETS.heart} alt="" aria-hidden />
                   ))}
                 </span>
-                {/* 分数占中间那一栏（用户要求「放在中间顶部」）。它原来在最右，
-                    右边紧挨着音效开关，看着像那枚开关的附注而不是这一局的成绩。 */}
-                <div className={styles.scoreControls}>
-                  <span className={styles.score}>Your score: {state.score}</span>
-                </div>
+                {/* 分数占中间那一栏。`topBar` 版式下它搬去了画布外那条顶部条，
+                    这里就不重复渲染。 */}
+                {!topBar && <div className={styles.scoreControls}>{scoreEl}</div>}
               </div>
             )}
 
@@ -507,28 +638,30 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint }) {
               它们绝对是定位的，不占 flex 位置，眉标该多宽还是多宽。 */}
           {actionButton}
 
-          {/* 控制提示也在这条栏里，居中。它原来占着 HUD 的第二栏（顶部中间），
-              而那一栏现在归分数了；挪到画面里试过，正好压在角色和地面上。 */}
-          {showScoreBoard && !state.gameOver && (
-            <p
-              className={
-                showControls ? styles.controls : `${styles.controls} ${styles.controlsHidden}`
-              }
-              aria-hidden={!showControls}
+          {/* 结算时那枚金色的 `SUBMIT`。它站在 `EXIT` 平时的位置上（结算时 EXIT
+              本来就不出现），所以栏里不会挤。**点它之前什么都不发** —— 不想上传的
+              玩家，服务端一个字节都收不到。 */}
+          {board && state.gameOverScreenVisible && (
+            <button
+              type="button"
+              className={styles.submitBadge}
+              onClick={openBoard}
+              aria-label={BOARD_TEXT.submitTitle}
             >
-              <span className={styles.controlAction}>
-                <kbd className={styles.controlKey}>←</kbd>
-                <kbd className={styles.controlKey}>→</kbd>
-                <span>move</span>
-              </span>
-              <span aria-hidden="true">·</span>
-              <span className={styles.controlAction}>
-                <kbd className={styles.controlKey}>Space</kbd>
-                <span>jump</span>
-              </span>
-            </p>
+              <PixelWord text={BOARD_TEXT.submit} blockPx={blockPx * 0.42} tone="gold" />
+            </button>
           )}
+
+          {/* 控制提示。`topBar` 版式下它搬去了画布外那条顶部条（而且**待机时也
+              在**）；这里只在独立站那种版式下渲染 —— 那条栏平时被 PLAY 占着中间。 */}
+          {!topBar && showScoreBoard && !state.gameOver && controlsEl}
         </div>
+      )}
+
+      {/* 排行榜弹层。用 fixed 覆盖整个视口（见 `ScoreBoard.module.css`）——
+          画布只有 94:26 那么扁，输入框和榜单塞不进去。 */}
+      {board && boardOpen && (
+        <ScoreBoard run={boardRun} blockPx={blockPx} onClose={() => setBoardOpen(false)} />
       )}
     </>
   );

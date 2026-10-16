@@ -1,13 +1,22 @@
 import * as THREE from 'three';
 import { ASSETS, BUG_SHEET, CELL, GRID_Y } from './constants.js';
+import {
+  BUG_COLLISION_H,
+  BUG_COLLISION_W,
+  BUG_H,
+  groundPatrolBounds,
+  platformBounds,
+  updateBugMovement,
+  updatePlatform,
+} from './bugMotion.js';
 import { BUG_FRAG, BUG_VERT } from './shaders.js';
 import { hiddenMatrix, placeMatrix } from './utils.js';
 
-/** 精灵帧 26×27 像素，显示宽 2 格 → 高按同比例换算 */
-const BUG_W = 2;
-const BUG_H = (27 / 26) * BUG_W;
-/** 原 `K = 20 * N / 27` */
-const BUG_COLLISION_H = (20 * BUG_H) / 27;
+/**
+ * 尺寸与运动学都搬去了 `bugMotion.js` —— 那一层不依赖 three，服务端重放要用。
+ * 下面文件末尾的 `export { ... BUG_COLLISION_H ... }` 负责把它们转发出去。
+ */
+const BUG_W = BUG_COLLISION_W;
 
 const MAX_BUGS = 128;
 /** 帧宽/高在图集里的 UV 跨度（各内缩 1px 防渗色，原 `F` / `z`） */
@@ -212,7 +221,7 @@ function loadBugTexture(sheet) {
  */
 export class Bug {
   static groundPatrolBounds(x) {
-    return { minX: Math.max(1, x - 8), maxX: x + 8 };
+    return groundPatrolBounds(x);
   }
 
   /** 原 `J.getSpeed(v) = 2.5 + 0.25v` */
@@ -253,23 +262,10 @@ export class Bug {
     );
   }
 
+  // 位移与站立判定都在 `bugMotion.js`，这里只负责把结果画出来 ——
+  // 服务端要拿同一份物理去重放虫子的位置（见那个文件的说明）。
   updateMovement(dt, gravity, blocks, speed) {
-    this.updatePlatform(dt, gravity, blocks);
-    if (this.maxX <= this.minX) {
-      this.x = this.minX;
-      this.direction = 0;
-    } else {
-      this.x += this.direction * speed * dt;
-      if (this.x <= this.minX) {
-        this.x = this.minX;
-        this.direction = 1;
-        this.patrolDirection = 1;
-      } else if (this.x >= this.maxX) {
-        this.x = this.maxX;
-        this.direction = -1;
-        this.patrolDirection = -1;
-      }
-    }
+    updateBugMovement(this, dt, gravity, blocks, speed);
     this.positionMesh();
   }
 
@@ -290,67 +286,12 @@ export class Bug {
   }
 
   updatePlatform(dt, gravity, blocks) {
-    if (!this.canFall) return;
-    if (this.velocityY === 0) {
-      const bounds = this.getPlatformBounds(blocks);
-      if (bounds) {
-        this.minX = bounds.minX;
-        this.maxX = bounds.maxX;
-        this.x = Math.max(this.minX, Math.min(this.maxX, this.x));
-        if (this.maxX <= this.minX) this.direction = 0;
-        return;
-      }
-      this.direction = this.patrolDirection;
-      const fallback = Bug.groundPatrolBounds(this.x);
-      this.minX = fallback.minX;
-      this.maxX = fallback.maxX;
-    }
-    const prevY = this.y;
-    this.velocityY -= gravity * dt;
-    this.y += this.velocityY * dt;
-    let landing = 0;
-    for (const block of blocks) {
-      const top = block.y + 1;
-      if (prevY >= top && this.y <= top && this.x < block.x + 1 && this.x + BUG_W > block.x) {
-        landing = Math.max(landing, top);
-      }
-    }
-    if (landing > 0) {
-      this.y = landing;
-      this.velocityY = 0;
-    } else if (this.y <= 0) {
-      this.y = 0;
-      this.velocityY = 0;
-      this.canFall = false;
-      const bounds = Bug.groundPatrolBounds(this.x);
-      this.minX = bounds.minX;
-      this.maxX = bounds.maxX;
-    }
+    updatePlatform(this, dt, gravity, blocks);
   }
 
   /** 找出当前所站连续方块段的可行走区间，避免走到边缘掉下去 */
   getPlatformBounds(blocks) {
-    const aligned = blocks
-      .filter((b) => Math.abs(b.y + 1 - this.y) < 0.001)
-      .sort((a, b) => a.x - b.x);
-    let i = 0;
-    while (i < aligned.length) {
-      let end = i + 1;
-      while (end < aligned.length && aligned[end].x === aligned[end - 1].x + 1) end += 1;
-      const startX = aligned[i].x;
-      const endX = aligned[end - 1].x + 1;
-      const length = endX - startX;
-      if (length <= BUG_W && this.x < endX && this.x + BUG_W > startX) {
-        const center = startX + (length - BUG_W) / 2;
-        return { minX: center, maxX: center };
-      }
-      const limit = endX - BUG_W;
-      if (limit >= startX && this.x >= startX && this.x <= limit) {
-        return { minX: startX, maxX: limit };
-      }
-      i = end;
-    }
-    return null;
+    return platformBounds(this, blocks);
   }
 
   positionMesh() {

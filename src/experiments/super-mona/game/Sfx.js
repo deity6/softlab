@@ -202,6 +202,13 @@ export class Sfx {
         case 'gameOver':
           for (const t of SFX.gameOver) this.playTone(ctx, t, pitch, reverb);
           break;
+        case 'uiClick':
+          this.playTone(ctx, SFX.uiClick, pitch, reverb);
+          break;
+        case 'uiBloom':
+          for (const t of SFX.uiBloom) this.playTone(ctx, t, pitch, reverb);
+          this.playNoise(ctx, SFX.uiBloomNoise, pitch, reverb);
+          break;
         case 'damage':
           // 原站这一支没有传 durationMultiplier
           this.playTone(ctx, SFX.damage.tone, pitch, reverb);

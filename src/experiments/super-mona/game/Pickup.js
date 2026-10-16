@@ -65,15 +65,29 @@ Promise.all(
   ASSETS.contribution.map(
     (path) =>
       new Promise((resolve) => {
-        new THREE.TextureLoader().load(path, (texture) => {
-          texture.colorSpace = THREE.SRGBColorSpace;
-          cropToAlphaBounds(texture);
-          resolve(texture);
-        });
+        new THREE.TextureLoader().load(
+          path,
+          (texture) => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            cropToAlphaBounds(texture);
+            resolve(texture);
+          },
+          undefined,
+          /**
+           * ⚠️ 加载失败**也必须 resolve**。
+           *
+           * `TextureLoader.load` 只有 onLoad，没有 onError 的话这个 Promise 会永远
+           * 挂着 → `Promise.all` 不落地 → `icons` 永远是空的 → 拾取物那层中心图标
+           * 的 `map` 一直是 undefined。而它的 opacity 动画照样会跑到 1，
+           * 于是**一个纯白的方块盖在彩色底上** —— 看起来就是「色块是白的」。
+           * 退化成 `null` 之后，最坏情况只是没有图标，颜色还是对的。
+           */
+          () => resolve(null),
+        );
       }),
   ),
 ).then((list) => {
-  icons.push(...list);
+  icons.push(...list.filter(Boolean));
   iconsReady = true;
   pending.splice(0).forEach((fn) => fn());
 });

@@ -25,8 +25,13 @@ export function hiddenMatrix() {
   return new THREE.Matrix4().makeScale(0, 0, 0).setPosition(1e6, 1e6, 0);
 }
 
-/** 原 `eY` */
-export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+/**
+ * 原 `eY`。
+ *
+ * 实现搬去了 `rules.js`（那一层不依赖 three，服务端重放要直接 import）——
+ * 这里保留同名再导出，免得改掉散在十几处的调用点。
+ */
+export { clamp } from './rules.js';
 
 /** 原 `ej`：AABB 相交判定 */
 export const intersects = (a, b) =>

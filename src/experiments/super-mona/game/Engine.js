@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GRID_Y, pickLayout } from './constants.js';
+import { FIXED_DT } from './rules.js';
 import { OpeningScene } from './OpeningScene.js';
 import { Transition } from './Transition.js';
 import { Game } from './Game.js';
@@ -19,15 +20,22 @@ worldCamera.updateProjectionMatrix();
  * 并负责画布尺寸与网格缩放的同步。
  */
 export class Engine {
-  constructor({ wrapper, canvas, onStateChange }) {
+  constructor({ wrapper, canvas, onStateChange, gameOptions = {} }) {
     this.wrapper = wrapper;
     this.canvas = canvas;
     this.onStateChange = onStateChange;
+    /**
+     * 传给 `Game` 的构造参数（`logRun` 之类）。放在这里是因为每一局
+     * （开始 / 再来一局）都会重建一个 `Game`，这些选项得跟着一起传下去。
+     */
+    this.gameOptions = gameOptions;
 
     this.firstScene = new OpeningScene();
     this.camera = this.firstScene.camera;
     this.scene = new THREE.Scene();
     this.clock = new THREE.Clock();
+    /** 固定步长的余量（见 `update`） */
+    this.accumulator = 0;
     this.game = null;
     this.transition = new Transition();
     this.canvasWidth = 0;
@@ -64,7 +72,7 @@ export class Engine {
 
   createGame() {
     if (this.game) return;
-    this.game = new Game(this.onStateChange);
+    this.game = new Game(this.onStateChange, this.gameOptions);
     this.scene.add(this.game.group);
     const width = this.wrapper.clientWidth;
     if (width > 0) this.game.resize(width);
@@ -112,12 +120,40 @@ export class Engine {
     }
   }
 
+  /**
+   * 逐帧推进。
+   *
+   * ⚠️ 这里是**固定步长**（累积器模式），不是把 rAF 给的 dt 直接喂下去。
+   *
+   * 为什么非改不可：排行榜的校验是「服务端拿种子把这一局重放一遍」，而地形是
+   * 边滚动边生成的（`generateSceneUntil`）—— 只要调用时机差半帧，随机数的消费
+   * 顺序就错开，之后整张地图和浏览器不是同一张，校验全废。固定步长之后，
+   * 两边逐帧同 dt、同顺序。
+   *
+   * 顺带的效果：物理不再随显示器刷新率变化（144Hz 和 60Hz 手感一致）。
+   */
   update(active, visible) {
-    if (!active || !visible) return;
-    const dt = Math.min(this.clock.getDelta(), 0.05);
-    this.firstScene.update(dt);
-    this.game?.update(dt);
-    this.render();
+    if (!active || !visible) {
+      // 不可见时不要把时间攒着 —— 切回来那一刻会一次补出几百帧
+      this.accumulator = 0;
+      this.clock.getDelta();
+      return;
+    }
+
+    this.accumulator += this.clock.getDelta();
+    // 上限 0.25 秒：切标签页回来、或主线程卡一下，delta 可能是几十秒，
+    // 补几千帧会直接卡死页面。丢掉这段不影响任何东西 —— 游戏内的时间就是
+    // `elapsed`，它跟着帧数走，不跟墙上的钟走。
+    if (this.accumulator > 0.25) this.accumulator = 0.25;
+
+    let stepped = false;
+    while (this.accumulator >= FIXED_DT) {
+      this.firstScene.update(FIXED_DT);
+      this.game?.update(FIXED_DT);
+      this.accumulator -= FIXED_DT;
+      stepped = true;
+    }
+    if (stepped) this.render();
   }
 
   render() {

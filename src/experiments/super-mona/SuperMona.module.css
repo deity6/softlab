@@ -83,10 +83,66 @@
   transition: opacity 0.35s ease-in, transform 0.35s ease-in;
 }
 
-/* 跳过一次之后淡出。在栏里没有「滑出画面」的余地，所以只做淡出加一点下沉 */
+/* 按过任意一个游戏键就淡出。早先是靠位移（滑出画面）隐藏的，但那和顶部条里的
+   静态排布打架 —— 改成纯淡出，两种版式通用。 */
 .controlsHidden {
   opacity: 0;
-  transform: translate(-50%, calc(-50% + 6px));
+  visibility: hidden;
+}
+
+/* 键盘**真正按下**时键帽跟着沉下去 —— 手指的动作和画面里的提示是同一件事，
+   而不是各说各的。松开自动弹回（过渡在 `.controlKey` 上）。 */
+.controlKeyDown {
+  background: #0d1117;
+  box-shadow: none;
+  transform: translateY(1px);
+}
+
+/* ---- 顶部信息条（`topBar` 版式，实验室专用） ----
+   分数居中、按键指引在右半区的中间、音效开关贴最右。
+
+   ⚠️ 它挂在 wrapper **外面**：wrapper 带 `overflow: hidden`（要裁画布的圆角与
+   缩放误差），放在里面 `bottom: 100%` 也会被整个裁掉 —— 试过，页面上什么都没有。
+   负 `margin-top` 让它不占位：`justify-content: center` 下总高不变，画布位置一点
+   不动，它自己浮在上方那段留白里（那段留白本来一直浪费着）。
+   独立站没有这条留白（画布上方紧挨着导航），那边不开这个版式。 */
+.topBar {
+  position: relative;
+  height: 34px;
+  margin-top: -34px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* 三样东西绝对定位在同一条水平线上：50% / 75% / 右端 */
+.topBar .score,
+.topBarKeys,
+.topBar .soundToggle {
+  position: absolute;
+  top: 50%;
+  pointer-events: auto;
+}
+
+.topBar .score {
+  left: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+.topBarKeys {
+  left: 75%;
+  transform: translate(-50%, -50%);
+}
+
+.topBar .soundToggle {
+  right: 0;
+  transform: translateY(-50%);
+}
+
+/* 条里的按键指引按静态流排 —— 外面那条规则带绝对定位，是给「栏内居中」用的 */
+.topBarKeys .controls {
+  position: static;
+  transform: none;
 }
 
 /* ---- 触屏虚拟按键 ---- */
@@ -167,6 +223,9 @@
   font-size: 12px;
   font-weight: 425;
   line-height: 1;
+  /* 按下 / 松开要跟手 —— 快了才像物理键帽，慢了就成了动画 */
+  transition: background-color 0.08s ease-out, box-shadow 0.08s ease-out,
+    transform 0.08s ease-out;
 }
 
 .score {
@@ -378,7 +437,8 @@
      改成跟着 flex 流排，居中即可。 */
   .actions .pixelPlay,
   .actions .pixelPlayAgain,
-  .actions .pixelExit {
+  .actions .pixelExit,
+  .actions .submitBadge {
     position: static;
     transform: none;
     align-self: center;
@@ -420,6 +480,57 @@
   right: var(--site-spacing, 24px);
   top: 50%;
   transform: translateY(-50%);
+}
+
+/* 结算时那枚「上传成绩」的金色指示。
+   坐标与 `.pixelExit` 完全相同 —— 结算时 EXIT 不出现，这个位置正好空着，不用
+   为它再挤地方。金色和闪光都在 `PixelWord` 的 gold 档里，这里只管位置，外加
+   一点上下浮动的「来点我」的意思。 */
+.submitBadge {
+  position: absolute;
+  right: var(--site-spacing, 24px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px 2px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  animation: submitFloat 2.6s ease-in-out infinite;
+  transition: filter 0.28s ease-out, transform 0.28s ease-out;
+}
+
+/* 悬浮：整体提亮、金色更饱和，波形走快一点（像被点着的金属），位置只上浮 3px。
+   **刻意不用 scale** —— 放大是「按钮」的手感，而这行字不是按钮；更要紧的是缩放会把
+   刚刚贴齐像素的方块又推到半像素上，越悬越糊。那两个 `--pixel-gleam-*` 变量是
+   `PixelWord` 读的（见 `PixelWord.module.css`），动画周期不能由变量给名字，但能由变量给时长。 */
+.submitBadge:hover,
+.submitBadge:focus-visible {
+  animation: none;
+  transform: translateY(calc(-50% - 3px));
+  filter: brightness(1.1) saturate(1.1);
+  --pixel-gleam-dur: 1.25s;
+  --pixel-gleam-stagger: 11ms;
+}
+
+.submitBadge:focus-visible {
+  outline: 2px solid #e8b44a;
+  outline-offset: 4px;
+}
+
+@keyframes submitFloat {
+  0%,
+  100% {
+    transform: translateY(-50%);
+  }
+  50% {
+    transform: translateY(calc(-50% - 4px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .submitBadge {
+    animation: none;
+  }
 }
 
 @keyframes hudEnter {

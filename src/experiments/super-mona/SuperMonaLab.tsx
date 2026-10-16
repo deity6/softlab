@@ -44,7 +44,13 @@ export default function SuperMonaLab() {
       {/* 竖屏提示由组件自己盖在画布上（`.rotateHint`）—— 放在这里会连整块实验区
           一起盖住，而实验页在竖屏下有很多空白，一进来就是一大片白。 */}
       <div className="lab lab--mona">
-        <SuperMona portraitHint={t('mona.rotate')} />
+        {/* `topBar` —— 把分数 / 按键指引 / 音效开关搬到画布**上方**那条空带里。
+            实验室里「画布 + 下方栏」是垂直居中的，上面本来就空着一条，此前一直
+            浪费着；独立站没有这条带子（画布上方紧挨着导航），所以那边不开。
+
+            `board` —— 结算时显示上传成绩的入口。后端只挂在本站（`functions/api/scores.js`
+            + D1），独立站 `super-mona.pages.dev` 是纯静态的，没有也不需要有。 */}
+        <SuperMona topBar board portraitHint={t('mona.rotate')} />
       </div>
 
       {/* 项目联动：这里只是「能玩」的一小块，完整的那个项目单开了一站 ——

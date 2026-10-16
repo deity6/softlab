@@ -1,0 +1,60 @@
+/* 静态像素字。排版逻辑全在 `PixelWord.jsx`，这里只管方块长什么样。
+
+   尺度和 `PixelAction` 保持一致：方块占格子的 95%（留 5% 的缝），
+   缝隙才是「点阵」观感的来源 —— 铺满会连成色块拼贴。
+
+   ⚠️ 曾经试过把它改「清晰」（格子取整到像素 + 固定 1px 缝 + 收窄色带），
+      结果在小尺寸下反而更差，已整体回退。真嫌糊的话，正路是**把字做大**
+      （`blockPx` 调上去），而不是在字号不变的前提下抠缝。 */
+
+.root {
+  position: relative;
+  display: block;
+  flex: none;
+  /* 一行字整体是一块，别让选择器把它拆开 */
+  user-select: none;
+}
+
+.blk {
+  position: absolute;
+  width: var(--blk);
+  height: var(--blk);
+}
+
+/* 灰：和 `GAME OVER` 的 `TYPE_COLOR`（0x57615b）同色 */
+.root[data-tone='plain'] .blk {
+  background: #57615b;
+}
+
+/* 金：沿横轴的亮暗带 + 逐块延迟的呼吸。延迟按方块的序号（不是按列）铺，
+   所以亮起来的是一道斜着扫过去的波，而不是整列一起闪。
+
+   周期和错开量走 CSS 变量：外面那枚 SUBMIT 按钮**悬浮**时只改这两个变量，
+   让波形走快一点，不必碰这个文件（`animation-name` 不能由变量给，但时长可以）。 */
+.root[data-tone='gold'] .blk {
+  background: color-mix(in srgb, #fff2c0 calc(var(--t) * 100%), #a86f14);
+  animation: goldGleam var(--pixel-gleam-dur, 2.8s) ease-in-out infinite;
+  animation-delay: calc(var(--i) * var(--pixel-gleam-stagger, 16ms));
+}
+
+/* 整行外面再罩一层暖光晕。做在容器上而不是每块上 —— 一次 filter 比几百次便宜 */
+.root[data-tone='gold'] {
+  filter: drop-shadow(0 0 5px rgb(255 197 66 / 0.55));
+}
+
+@keyframes goldGleam {
+  0%,
+  62%,
+  100% {
+    filter: brightness(1);
+  }
+  78% {
+    filter: brightness(1.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root[data-tone='gold'] .blk {
+    animation: none;
+  }
+}

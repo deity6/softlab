@@ -1,0 +1,317 @@
+/* 排行榜弹层。
+
+   风格跟着游戏本体走：直角、硬边、双线框、等宽字体 —— 8bit 那套视觉的骨架就是
+   「没有圆角、没有渐变、没有阴影高度」，全靠边和色块说话。
+
+   它用 `position: fixed` 覆盖整个视口，而不是塞进画布区域里 —— 画布只有 94:26
+   那么扁（1200px 宽时高约 330px），输入框加榜单根本放不下。 */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(6 9 16 / 0.72);
+  backdrop-filter: blur(3px);
+  animation: overlayIn 0.18s ease-out;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: min(82vh, 640px);
+  border: 2px solid #e8b44a;
+  /* 双层细边 —— 8bit 界面的经典做法，一粗一细把面板「框」起来 */
+  box-shadow: 0 0 0 1px #120c04, 0 0 0 4px #6d4c14, 0 18px 48px rgb(0 0 0 / 0.55);
+  background: #0b101c;
+  color: #e9edec;
+  font-family: var(--site-fontStack-monospace, ui-monospace, monospace);
+  animation: panelIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid #263148;
+}
+
+.close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #38445f;
+  background: #141b2c;
+  color: #9fb0c9;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  border-color: #e8b44a;
+  color: #f3cd7a;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 10px 14px 0;
+}
+
+.tab {
+  padding: 6px 14px;
+  border: 1px solid #2b3750;
+  border-bottom: none;
+  background: #111a2b;
+  color: #8d9db6;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.tab[data-active='true'] {
+  background: #1a2337;
+  color: #f3cd7a;
+  box-shadow: inset 0 2px 0 #e8b44a;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 14px;
+  border-top: 1px solid #2b3750;
+}
+
+.mine {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  color: #8d9db6;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.mine b {
+  color: #cfd9e6;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+
+.mine b[data-gold='true'] {
+  color: #f3cd7a;
+  text-shadow: 0 0 10px rgb(243 205 122 / 0.5);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #2b3750;
+  background: #111a2b;
+  padding: 8px 10px;
+}
+
+.fieldLabel {
+  color: #6f7f99;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #f5e7c6;
+  font: inherit;
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.input::placeholder {
+  color: #46536b;
+}
+
+.hint {
+  margin: 0;
+  color: #5f6d85;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.primary,
+.ghost {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #e8b44a;
+  background: #2a1f08;
+  color: #f7d98d;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+.primary:hover:not(:disabled) {
+  background: #3b2c0c;
+  color: #fff0c0;
+}
+
+.primary:disabled {
+  border-color: #3a4055;
+  background: #151b28;
+  color: #4e5a70;
+  cursor: not-allowed;
+}
+
+.ghost {
+  border-color: #34405a;
+  background: #131a29;
+  color: #93a2ba;
+}
+
+.ghost:hover {
+  border-color: #55617d;
+  color: #c3cee0;
+}
+
+.saved {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #3c5a34;
+  background: #0f1c13;
+  color: #9fe0a8;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.inline {
+  border: none;
+  background: none;
+  color: #f3cd7a;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.error {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid #e0604f;
+  background: #1d1010;
+  color: #f0a99f;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+}
+
+.empty {
+  margin: 0;
+  padding: 28px 0;
+  color: #5f6d85;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-align: center;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2.6em 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-bottom: 1px solid #1c2536;
+  font-size: 13px;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row[data-top='true'] .rank,
+.row[data-top='true'] .points {
+  color: #f3cd7a;
+}
+
+.row[data-me='true'] {
+  background: #1a2337;
+  box-shadow: inset 3px 0 0 #e8b44a;
+}
+
+.rank {
+  color: #64748d;
+  font-size: 11px;
+}
+
+.rowName {
+  overflow: hidden;
+  color: #d5dde9;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  color: #5f6d85;
+  font-size: 11px;
+}
+
+.points {
+  min-width: 4em;
+  color: #cfd9e6;
+  text-align: right;
+}
+
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .panel {
+    animation: none;
+  }
+}

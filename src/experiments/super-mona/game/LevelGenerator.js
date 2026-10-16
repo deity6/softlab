@@ -1,18 +1,35 @@
 import { GRID_X, GRID_Y, LEVEL, SPAWN } from './constants.js';
-import { clamp } from './utils.js';
+import { groundPatrolBounds } from './bugMotion.js';
+import { clamp, forcedScrollSpeed } from './rules.js';
 import { shuffle } from './rng.js';
-import { Bug } from './Bug.js';
-import { createPickup } from './Pickup.js';
 import { DEMO_BUGS, DEMO_FLOATS, DEMO_GROUND, DEMO_PICKUPS, demoCell } from './demoLevel.js';
 
 /**
  * 原 `class eq` 里的关卡生成部分。
  * 两行平台（下排可出 mega、可架桥，上排只出平段/抬升），
  * 用 bag shuffle 保证 pattern 分布均匀，全程由 Lehmer PRNG 驱动，同种子必得同关卡。
+ *
+ * ⚠️ **这个文件不能 import three**（连通用的 `Bug` / `createPickup` 也不行）。
+ *    服务端要拿它重放同一局来验证分数，而 Workers 里没有 WebGL；所以「造方块 /
+ *    造拾取物 / 造虫子」三件事都改成向 `game` 要（见 `game.createBlock` 等），
+ *    浏览器给真的、服务端给只记坐标的假货。两边跑的是同一份源码。
+ *
+ * ⚠️ 随机数一律走 `game.genRandom`（地形专用流），**不要用 `game.random`**。
+ *    地形必须只由「种子 + 时间」决定：混进玩家行为（顶碎方块的掉落判定）或
+ *    鸭子状态的随机，服务端就复现不出同一张地图，整套校验失效。
  */
 export class LevelGenerator {
   constructor(game) {
     this.game = game;
+  }
+
+  /**
+   * 当前的强制滚动速度。
+   * 直接从 `rules.js` 的纯函数取，而不是问 `game` —— 服务端重放时那个假 game
+   * 上根本没有这个方法，而这是个纯公式，没必要两处实现。
+   */
+  scrollSpeed() {
+    return forcedScrollSpeed(this.game.elapsed, this.game.demo);
   }
 
   createLevel() {
@@ -38,8 +55,8 @@ export class LevelGenerator {
 
   createPlatformRow(startX, minY, rangeY, allowMega, isLower) {
     return {
-      nextX: startX + Math.floor(8 * this.game.random()),
-      y: minY + Math.floor(this.game.random() * rangeY),
+      nextX: startX + Math.floor(8 * this.game.genRandom()),
+      y: minY + Math.floor(this.game.genRandom() * rangeY),
       minY,
       maxY: minY + rangeY - 1,
       allowMega,
@@ -67,11 +84,11 @@ export class LevelGenerator {
 
     while (this.game.nextGroundBugX < untilX) {
       const x = this.game.nextGroundBugX;
-      if (this.game.random() < 0.5) {
-        const bounds = Bug.groundPatrolBounds(x);
-        this.addBug(x, 0, this.game.random() < 0.5 ? -1 : 1, bounds.minX, bounds.maxX);
+      if (this.game.genRandom() < 0.5) {
+        const bounds = groundPatrolBounds(x);
+        this.addBug(x, 0, this.game.genRandom() < 0.5 ? -1 : 1, bounds.minX, bounds.maxX);
       }
-      this.game.nextGroundBugX += 20 + Math.floor(9 * this.game.random());
+      this.game.nextGroundBugX += 20 + Math.floor(9 * this.game.genRandom());
     }
   }
 
@@ -106,12 +123,12 @@ export class LevelGenerator {
       row.forcedPattern = null;
       return forced;
     }
-    if (row.isLower && this.game.random() < LEVEL.BRIDGE_CHANCE) return 'bridge';
+    if (row.isLower && this.game.genRandom() < LEVEL.BRIDGE_CHANCE) return 'bridge';
     if (row.bag.length === 0) {
       const names = row.isLower
         ? ['flatLong', 'flatLong', 'flatShort', 'flatShort', 'raised', 'stairsUp', 'stairsDown']
         : ['flatLong', 'flatLong', 'flatShort', 'flatShort', 'raised'];
-      row.bag = shuffle(names, this.game.random);
+      row.bag = shuffle(names, this.game.genRandom);
     }
     return row.bag.pop();
   }
@@ -159,12 +176,12 @@ export class LevelGenerator {
   }
 
   pickLength(range) {
-    return range.MIN + Math.floor(this.game.random() * (range.MAX - range.MIN + 1));
+    return range.MIN + Math.floor(this.game.genRandom() * (range.MAX - range.MIN + 1));
   }
 
   /** 平段：随着滚动速度提升会越来越长 */
   buildFlatPattern(row, x, name) {
-    const bonus = this.game.getForcedScrollSpeed() - 2;
+    const bonus = this.scrollSpeed() - 2;
     const extra = name === 'flatLong' ? Math.floor(bonus * LEVEL.LENGTH_PER_SCROLL_SPEED) : 0;
     const length =
       this.pickLength(name === 'flatLong' ? LEVEL.LENGTH.LONG : LEVEL.LENGTH.SHORT) + extra;
@@ -174,8 +191,8 @@ export class LevelGenerator {
       endX: segment ? x + length : x,
       gapAfter:
         name === 'flatLong'
-          ? this.pickLength(this.game.random() < 0.5 ? LEVEL.GAP.MEDIUM : LEVEL.GAP.LONG)
-          : this.pickLength(this.game.random() < 0.5 ? LEVEL.GAP.SHORT : LEVEL.GAP.MEDIUM),
+          ? this.pickLength(this.game.genRandom() < 0.5 ? LEVEL.GAP.MEDIUM : LEVEL.GAP.LONG)
+          : this.pickLength(this.game.genRandom() < 0.5 ? LEVEL.GAP.SHORT : LEVEL.GAP.MEDIUM),
       mainSegment: segment,
     };
   }
@@ -196,7 +213,7 @@ export class LevelGenerator {
   }
 
   buildStairsPattern(row, x, dir) {
-    const steps = 1 + Math.floor(this.game.random() * LEVEL.STAIR_MAX_STEPS);
+    const steps = 1 + Math.floor(this.game.genRandom() * LEVEL.STAIR_MAX_STEPS);
     let cursor = x;
     let y = row.y;
     let placed = false;
@@ -228,7 +245,7 @@ export class LevelGenerator {
     const climb = Math.max(
       1,
       (upper
-        ? upper.minY + Math.floor(this.game.random() * (upper.maxY - upper.minY + 1))
+        ? upper.minY + Math.floor(this.game.genRandom() * (upper.maxY - upper.minY + 1))
         : row.maxY) - row.y,
     );
     const count = Math.min(LEVEL.STAIR_MAX_STEPS, Math.ceil(climb / LEVEL.STEP_HEIGHT));
@@ -267,7 +284,7 @@ export class LevelGenerator {
   /** 55% 概率在平台段中间放一个拾取物；满足条件时换成 mega */
   spawnPickupOnSegment(row, segment) {
     const { x, y, length } = segment;
-    const regular = this.game.random() < 0.55;
+    const regular = this.game.genRandom() < 0.55;
     const mega = row.allowMega && this.game.elapsed >= row.nextMegaAt && x > SPAWN.MIN_X;
     if (!regular && !(mega && x > SPAWN.FORCE_X)) return;
 
@@ -282,8 +299,8 @@ export class LevelGenerator {
     );
     if (maxY < y + 1) return;
 
-    const pickup = createPickup(px, Math.min(y + 4, maxY), size, mega);
-    this.game.worldGroup.add(pickup.mesh);
+    const pickup = this.game.createPickup(px, Math.min(y + 4, maxY), size, mega);
+    this.game.attach(pickup.mesh);
     this.game.pickups.push(pickup);
     if (mega) row.nextMegaAt = this.game.elapsed + SPAWN.SPAWN_INTERVAL_SECONDS;
   }
@@ -301,12 +318,12 @@ export class LevelGenerator {
 
   spawnBugOnSegment(segment) {
     const { x, y, length } = segment;
-    if (length > 2 && this.game.random() < 0.25) {
+    if (length > 2 && this.game.genRandom() < 0.25) {
       const maxX = x + length - 2;
       this.addBug(
-        x + this.game.random() * (maxX - x),
+        x + this.game.genRandom() * (maxX - x),
         y + 1,
-        this.game.random() < 0.5 ? -1 : 1,
+        this.game.genRandom() < 0.5 ? -1 : 1,
         x,
         maxX,
         true,
@@ -316,7 +333,7 @@ export class LevelGenerator {
 
   /** 铺一块地形并登记到 `platformYsByX` —— `placeRun` 与预制关卡共用的单格版 */
   placeBlock(x, y) {
-    const block = this.game.blockField.create(x, y);
+    const block = this.game.createBlock(x, y);
     this.game.blocks.push(block);
     const occupied = this.game.platformYsByX.get(x) ?? new Set();
     occupied.add(y);
@@ -356,8 +373,8 @@ export class LevelGenerator {
       const pickupY = DEMO_PICKUPS[cell];
       if (pickupY !== null) {
         // size 与原站程序化关卡一致：普通 1 格。写 3 会变成 9 块拼成的大方块。
-        const pickup = createPickup(x, pickupY, 1, false);
-        game.worldGroup.add(pickup.mesh);
+        const pickup = game.createPickup(x, pickupY, 1, false);
+        game.attach(pickup.mesh);
         game.pickups.push(pickup);
       }
 
@@ -372,8 +389,6 @@ export class LevelGenerator {
   }
 
   addBug(x, y, direction, minX, maxX, canFall = false) {
-    this.game.bugs.push(
-      new Bug(this.game.bugSheet.createSprite(), x, y, direction, minX, maxX, canFall),
-    );
+    this.game.bugs.push(this.game.createBug(x, y, direction, minX, maxX, canFall));
   }
 }

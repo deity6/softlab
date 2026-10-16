@@ -110,6 +110,27 @@ npm run preview    # 把构建产物跑在 :4173
 而 `dvh` 会随地址栏收起重算、让布局跳。手机上交互面板变成底部抽屉 ——  
 屏幕上方 38% 永远留给画面 —— 横屏时再回到右侧栏。
 
+### 关于排行榜的后端
+
+实验 04（Super Mona）带一个小排行榜：一局结束后可以上传成绩，榜单展示全站前 20 名。
+
+**它的后端有意不放在这个仓库里。** 后端是 `functions/` 目录（Cloudflare Pages Functions
+加一个 D1 数据库），已被 `.gitignore` 排除 —— 所以你 clone 到的是**纯静态前端**：
+构建和运行都不需要任何凭据、账号或数据库。
+
+Fork 或下载下来之后，站上的一切照常工作（3D 开场、游戏、音效都在），唯一不同的地方是
+结算面板里那个提交按钮会回一句 `LEADERBOARD IS OFFLINE HERE` —— 因为 `/api/scores`
+上没有东西在听。
+
+想自己接一个？前端只依赖一个约定：
+
+```
+POST /api/scores   { name, score, elapsed }  →  { ok: true, board: [...] }
+GET  /api/scores                             →  { ok: true, board: [...] }
+```
+
+调用点见 `src/experiments/super-mona/ScoreBoard.jsx`。
+
 ## 目录结构
 
 ```

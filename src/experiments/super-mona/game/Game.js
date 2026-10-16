@@ -7,13 +7,11 @@ import {
   GRAVITY,
   POWERUP_DURATION_PENALTY,
   POWERUP_SPEED_SPAN,
-  SCROLL_ACCEL_PER_SEC,
-  SCROLL_SPEED_MAX,
   SCROLL_SPEED_MIN,
 } from './constants.js';
 import { Grid } from './Grid.js';
 import { BlockField } from './BlockField.js';
-import { BugSheet, BUG_COLLISION_H } from './Bug.js';
+import { Bug, BugSheet, BUG_COLLISION_H } from './Bug.js';
 import { Mona } from './Mona.js';
 import { Ducky } from './Ducky.js';
 import { ScorePopups } from './ScorePopups.js';
@@ -21,7 +19,8 @@ import { GameOverBoard, GameOverType } from './GameOver.js';
 import { LevelGenerator } from './LevelGenerator.js';
 import { createPickup } from './Pickup.js';
 import { sfx } from './Sfx.js';
-import { createRng, randomSeed } from './rng.js';
+import { createRng, deriveSeed, randomSeed } from './rng.js';
+import { SCORE_RULES, forcedScrollSpeed } from './rules.js';
 import { intersects } from './utils.js';
 
 /**
@@ -32,11 +31,16 @@ import { intersects } from './utils.js';
 /** 静音占位：演示模式不出声，也不去动模块级 `sfx`（它有 localStorage 状态） */
 const SILENT_SFX = { playGameEffect() {} };
 
+/** 鸭子两次出现的间隔：12 秒 + 0–8 秒抖动（原代码里的 `12 + 8 * random()`） */
+const DUCKY_INTERVAL_MIN = 12;
+const DUCKY_INTERVAL_JITTER = 8;
+
 export class Game {
   /**
    * @param {(state: object) => void} onStateChange
-   * @param {{ autoPlay?: boolean, silent?: boolean }} [options]
+   * @param {{ autoPlay?: boolean, silent?: boolean, demo?: object, logRun?: boolean }} [options]
    *   `autoPlay` 打开演示模式 —— 脚本替玩家操作，见 `autoPilot()`。
+   *   `logRun` 打开对局记录（排行榜用）—— 只记数据，不出画。
    */
   constructor(onStateChange, options = {}) {
     this.onStateChange = onStateChange;
@@ -72,9 +76,45 @@ export class Game {
     this.nextGroundBugX = 28;
     this.nextDuckyAt = 12;
 
-    this.seed = randomSeed();
-    this.random = createRng(this.seed);
+    /**
+     * 三条**互相独立**的随机流。
+     *
+     * 为什么非拆不可：排行榜的校验方式是「服务端拿同一个种子把这一局重放一遍」，
+     * 而重放只复现地形与时间，它不知道玩家按了什么键。只要地形那条流里混进一次
+     * 玩家行为（比如顶碎方块时的掉落判定），从那一点起地形就和浏览器分叉，
+     * 整套校验失效。所以：
+     *   `genRandom`  —— 只给关卡生成器用，纯由 seed + 时间驱动
+     *   `dropRandom` —— 顶碎方块掉不掉拾取物（玩家行为驱动，必须隔离出去）
+     *   `random`     —— 鸭子的出现节奏（时间驱动，但仍单独一条，不混）
+     */
+    this.seed = options.seed ?? randomSeed();
+    this.genRandom = createRng(this.seed);
+    this.dropRandom = createRng(deriveSeed(this.seed, 0x2f1a));
+    this.random = createRng(deriveSeed(this.seed, 0x5bd7));
     this.level = new LevelGenerator(this);
+
+    /**
+     * 造实体的口子。浏览器给真实现（建 mesh），服务端重放给只记坐标的假货 ——
+     * `LevelGenerator` 因此不必 import `Bug` / `createPickup`（那两个拖着 three）。
+     */
+    this.createBlock = (x, y) => this.blockField.create(x, y);
+    this.createPickup =
+      options.createPickup ?? ((px, py, size, mega) => createPickup(px, py, size, mega));
+    this.createBug =
+      options.createBug ??
+      ((x, y, direction, minX, maxX, canFall) =>
+        new Bug(this.bugSheet.createSprite(), x, y, direction, minX, maxX, canFall));
+    this.attach = (mesh) => this.worldGroup.add(mesh);
+
+    /**
+     * 对局记录。
+     *
+     * `score` / `elapsed` 永远有（上传时要用）；`events`（每次得分的时刻与位置）
+     * 只在 `logRun` 打开时才记 —— 那是给「服务端重放验分」那套严格校验用的，
+     * 平时不开。当前线上走的是极简校验（只看时长和分数上限），所以默认不记。
+     */
+    this.logRun = Boolean(options.logRun);
+    this.run = { seed: this.seed, events: [] };
 
     this.keys = new Set();
     this.scrollX = 0;
@@ -96,7 +136,8 @@ export class Game {
       this.scrollingStarted = true;
       const isNewPress = !this.keys.has(e.code);
       this.keys.add(e.code);
-      if (e.code === 'Space' && isNewPress && !this.gameOver) {
+      // 跳跃：空格和 W 等价（习惯 WASD 的人不少，原站只认空格）
+      if ((e.code === 'Space' || e.code === 'KeyW') && isNewPress && !this.gameOver) {
         const isDoubleJump = this.mona.jumpsRemaining === 1;
         if (this.mona.jump()) {
           this.sfx.playGameEffect('jump', this.isSuper, isDoubleJump ? 1.4 : 1, isDoubleJump ? 2 : 1);
@@ -140,11 +181,13 @@ export class Game {
     this.emitState();
   }
 
-  /** 原 getForcedScrollSpeed：从 2 格/秒线性加速到 20 */
+  /**
+   * 原 getForcedScrollSpeed：从 2 格/秒线性加速到 20。
+   * 公式搬去了 `rules.js`（服务端重放要独立算「第 t 秒世界推进到哪」），这里只转发。
+   */
   getForcedScrollSpeed() {
     // 演示用恒定速度：加速曲线放在一百多像素高的封面里，前半段像卡帧、后半段看不清
-    if (this.demo) return this.demo.speed;
-    return Math.min(SCROLL_SPEED_MAX, SCROLL_SPEED_MIN + SCROLL_ACCEL_PER_SEC * this.elapsed);
+    return forcedScrollSpeed(this.elapsed, this.demo);
   }
 
   /**
@@ -327,14 +370,16 @@ export class Game {
         this.unregisterPlatformBlock(block);
         this.sfx.playGameEffect('breakBlock', this.isSuper);
         block.runBreakAnimation();
-        // 10% 概率碎块里掉出一个普通拾取物
-        if (this.random() < 0.1) {
+        // 10% 概率碎块里掉出一个普通拾取物。
+        // 用 `dropRandom` 而不是地形那条流：这一步是玩家行为触发的，混进地形流
+        // 会让服务端复现不出同一张地图（见构造函数里那段说明）。
+        if (this.dropRandom() < 0.1) {
           const pickup = createPickup(block.x, block.y, 1, false);
           this.worldGroup.add(pickup.mesh);
           this.pickups.push(pickup);
         }
         this.mona.hitCeiling(block.y - this.mona.COLLISION_HEIGHT);
-        this.addScore(10, block.x + 0.5, block.y + 1);
+        this.addScore('breakBlock', block.x + 0.5, block.y + 1);
         this.squashBugsOnBlock(block);
       }
     }
@@ -433,7 +478,11 @@ export class Game {
       if (!collected) continue;
 
       this.sfx.playGameEffect(pickup.mega ? 'collectMega' : 'collect', this.isSuper);
-      this.addScore(pickup.mega ? 100 : 50, pickup.x + pickup.width / 2, pickup.y + pickup.height);
+      this.addScore(
+        pickup.mega ? 'mega' : 'pickup',
+        pickup.x + pickup.width / 2,
+        pickup.y + pickup.height,
+      );
       if (pickup.mega) {
         this.superSeconds = 10 * this.getPowerupDurationMultiplier();
         this.superEnding = false;
@@ -444,8 +493,17 @@ export class Game {
   }
 
   updateDucky(dt) {
-    // 到点了就在右侧一段可落脚的方块上生成
-    if (this.ducky.isHidden && this.elapsed >= this.nextDuckyAt) {
+    /**
+     * 到点了就**先无条件推进下一次的时间**，再决定要不要真的生成。
+     *
+     * 原来这两次随机是在「鸭子离开」时消费的，而鸭子几时离开取决于玩家 ——
+     * 服务端重放没有玩家输入，随机序列到那一下就错位，之后整张地图都对不上。
+     * 改成纯时间驱动：每到点消费固定的两次随机（定下一个时间点、挑一个落点），
+     * 地形/拾取物的生成因此和玩家行为彻底脱钩。
+     */
+    if (this.elapsed >= this.nextDuckyAt) {
+      this.nextDuckyAt =
+        this.elapsed + DUCKY_INTERVAL_MIN + DUCKY_INTERVAL_JITTER * this.random();
       const reachable = this.blocks.filter(
         (b) =>
           this.ducky.canReach(b.y) &&
@@ -460,10 +518,9 @@ export class Game {
       );
       const pool = safe.length > 0 ? safe : reachable;
       const spot = pool[Math.floor(this.random() * pool.length)];
-      if (spot) this.ducky.spawn(spot.x, spot.y + 2);
+      if (this.ducky.isHidden && spot) this.ducky.spawn(spot.x, spot.y + 2);
     }
 
-    const wasHidden = this.ducky.isHidden;
     const wasDeparting = this.ducky.isDeparting;
 
     this.ducky.update(
@@ -491,10 +548,6 @@ export class Game {
     if (this.ducky.isWaiting) {
       const bounds = this.ducky.getBounds();
       if (bounds.x + bounds.width < this.scrollX) this.ducky.despawn();
-    }
-
-    if (!wasHidden && this.ducky.isHidden) {
-      this.nextDuckyAt = this.elapsed + 12 + 8 * this.random();
     }
   }
 
@@ -524,7 +577,7 @@ export class Game {
       // 从上方落下踩到，或者 Super 状态直接撞碎
       const stomping = this.mona.velocityY < 0 && this.mona.y > bug.y + BUG_COLLISION_H / 2;
       if (stomping || this.isSuper) {
-        this.addScore(25, bug.x + 1, bug.y + BUG_COLLISION_H);
+        this.addScore('bug', bug.x + 1, bug.y + BUG_COLLISION_H);
         this.sfx.playGameEffect('squashBug', this.isSuper);
         if (stomping) {
           bug.sprite.squish();
@@ -589,7 +642,7 @@ export class Game {
   squashBugsOnBlock(block) {
     for (const bug of this.bugs) {
       if (!bug.isStandingOn(block)) continue;
-      this.addScore(25, bug.x + 1, bug.y + BUG_COLLISION_H);
+      this.addScore('bug', bug.x + 1, bug.y + BUG_COLLISION_H);
       this.sfx.playGameEffect('squashBug', this.isSuper);
       bug.knockOut(
         0.45 * this.mona.JUMP_SPEED,
@@ -613,11 +666,29 @@ export class Game {
     });
   }
 
-  /** Super 状态下分数翻倍 */
-  addScore(value, x, y) {
-    const doubled = value * (this.isSuper ? 2 : 1);
+  /**
+   * 记一次得分（Super 状态下翻倍）。
+   *
+   * 参数是**事件类型**而不是数值：分值统一从 `rules.js` 的 `SCORE_RULES` 取，
+   * 免得调用点各写各的数字。这个分数只用来画飘字和本地自检 —— 排行榜上的
+   * 权威分数是服务端重放这一局的关卡、按同一张表自己算出来的。
+   */
+  addScore(kind, x, y) {
+    const value = SCORE_RULES[kind];
+    const isSuper = this.isSuper;
+    const doubled = value * (isSuper ? 2 : 1);
     this.score += doubled;
-    const popup = this.scorePopups.create(doubled, x, y, this.isSuper, this.elapsed);
+    // 记录时把坐标裁到 3 位小数：够服务端定位到具体那一格，又能把整局压到几 KB
+    if (this.logRun) {
+      this.run.events.push({
+        t: +this.elapsed.toFixed(3),
+        k: kind,
+        x: +x.toFixed(3),
+        y: +y.toFixed(3),
+        s: isSuper ? 1 : 0,
+      });
+    }
+    const popup = this.scorePopups.create(doubled, x, y, isSuper, this.elapsed);
     this.worldGroup.add(popup.mesh);
     popup.runAnimation(() => this.removeWorldMesh(popup.mesh));
   }
@@ -627,6 +698,22 @@ export class Game {
     if (!occupied) return;
     occupied.delete(block.y);
     if (occupied.size === 0) this.platformYsByX.delete(block.x);
+  }
+
+  /**
+   * 一局的记录，交给排行榜去上传。
+   *
+   * 极简校验只用到 `score` 与 `elapsed`；`seed` / `events` 是「服务端重放验分」
+   * 那套严格校验的输入（`functions/_shared/replay.js`，当前默认不启用）。
+   */
+  getRun() {
+    if (!this.run) return null;
+    return {
+      seed: this.run.seed,
+      elapsed: +this.elapsed.toFixed(3),
+      score: this.score,
+      events: this.run.events,
+    };
   }
 
   emitState() {

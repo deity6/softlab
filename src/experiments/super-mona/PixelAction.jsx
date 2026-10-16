@@ -26,6 +26,7 @@ export function PixelAction({
   disabled = false,
   analytics,
   className = '',
+  onPress,
   onActivate,
 }) {
   const blocks = useMemo(() => buildPixelLayout(text), [text]);
@@ -40,12 +41,15 @@ export function PixelAction({
 
   const handleClick = useCallback(() => {
     if (disabled || blooming) return;
+    // 按下的那一下先响 —— 和方块散开的时间差是刻意留的（`onActivate` 在动画
+    // 走完之后才触发），听感上才是「按下去 → 炸开」而不是两个音一起糊上来
+    onPress?.();
     setBlooming(true);
     timer.current = window.setTimeout(() => {
       setBlooming(false);
       onActivate?.();
     }, BLOOM_MS);
-  }, [disabled, blooming, onActivate]);
+  }, [disabled, blooming, onPress, onActivate]);
 
   if (!blockPx || !blocks.length) return null;
 

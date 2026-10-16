@@ -130,6 +130,29 @@ hides. On a phone the interaction panel becomes a bottom drawer — the top 38% 
 the screen always stays picture — and returns to a right-hand column in
 landscape.
 
+### About the leaderboard backend
+
+Experiment 04 (Super Mona) has a small leaderboard: after a run ends you can submit your
+score, and it lists the top 20 across all visitors.
+
+**Its backend is intentionally not part of this repository.** It lives in a `functions/`
+directory (Cloudflare Pages Functions plus a D1 database) which `.gitignore` excludes — so
+what you clone is a **pure static frontend**: no credentials, no account and no database are
+needed to build or run it.
+
+If you fork or download this, everything still works — the 3D intro, the game, the sound —
+except that the submit button in the results panel answers `LEADERBOARD IS OFFLINE HERE`,
+because nothing is listening on `/api/scores`.
+
+Want to wire up your own? The frontend assumes exactly one contract:
+
+```
+POST /api/scores   { name, score, elapsed }  →  { ok: true, board: [...] }
+GET  /api/scores                             →  { ok: true, board: [...] }
+```
+
+The call site is `src/experiments/super-mona/ScoreBoard.jsx`.
+
 ## Project layout
 
 ```
