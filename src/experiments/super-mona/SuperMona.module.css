@@ -491,6 +491,10 @@
 
 /* ============ 窄屏 / 矮屏：UI 全部叠进画幅 ============
  *
+ * ⚠️ 这一整段限定在 `.wrapper[data-compact]` 下 —— 只对**实验室**那版生效。
+ *    独立站（`topBar=false`）不加这个属性，窄屏下仍是「画布 + 下方栏」的原布局。
+ *    两个站共用同一份组件 CSS，用属性分流比拆成两份文件省事，也不会互相带坏。
+ *
  * 横屏手机上画布的宽度是**按剩余高度反推**的（见 `mona.css`），所以画布以下每多占
  * 1px，画布就窄 2.6px。原来那条下方栏（虚拟按键 + 眉标 + 动作字）整整吃掉 130px，
  * 画布只剩屏宽的 42%，上下全是空白。
@@ -502,7 +506,7 @@
      必须是 `inset: 0`（而不是贴在底部）—— 里面的动作字（PLAY / EXIT / SUBMIT）
      都是相对它定位的，只留 20px 高的话，`top: 52px` 那类值会直接落到画布外面
      （踩过：按钮 DOM 在、坐标也对，页面上什么都没有）。 */
-  .actions {
+  .actions[data-compact] {
     position: absolute;
     inset: 0;
     padding: 0;
@@ -511,12 +515,12 @@
   }
 
   /* 眉标在窄屏下会折行、直接盖住画面，而且它只是原站的装饰文案 —— 收掉 */
-  .heroEyebrow {
+  [data-compact] .heroEyebrow {
     display: none;
   }
 
   /* 虚拟按键叠在画布底部 */
-  .touchPad {
+  .touchPad[data-compact] {
     position: absolute;
     left: 0;
     right: 0;
@@ -526,33 +530,37 @@
 
   /* 按键后面现在是游戏画面（原先它下面只有空白），底色调淡一点让角色透出来。
      只降透明度、不动 56px 的尺寸 —— 触控目标的大小是可用性底线。 */
-  .touchKey {
+  [data-compact] .touchKey {
     background: rgb(255 255 255 / 0.6);
   }
 
   /* 动作字回到画布内：待机与结算居中（原来在画布下面那条栏里） */
-  .actions .pixelPlay,
-  .actions .pixelPlayAgain {
+  [data-compact] .actions .pixelPlay,
+  [data-compact] .actions .pixelPlayAgain {
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
     align-self: auto;
+    /* ⚠️ 覆盖层是 pointer-events: none（不然它会挡住画布上的拖拽），
+       所以里面的每个可点元素都得自己把事件收回来 —— 漏了就是「按钮在，点不动」 */
+    pointer-events: auto;
   }
 
   /* 游戏中退到右上角，让开虚拟按键和角色；`top: 52px` 是给上面那枚 32px 的音效
      开关让位（它固定在 right/top 各 10px） */
-  .actions .pixelExit {
+  [data-compact] .actions .pixelExit {
     position: absolute;
     right: 10px;
     top: 52px;
     transform: none;
     align-self: auto;
+    pointer-events: auto;
   }
 
   /* 看榜入口放到**左上角**（生命值下方），和右上角那串（音效 / EXIT / SUBMIT）
      分开站，四个东西互不打架。结算时 SUBMIT 会顶掉 EXIT 的位置，也不会撞它。 */
-  .rankFloating {
+  .rankFloating[data-compact] {
     position: absolute;
     left: 12px;
     top: 52px;
@@ -565,19 +573,20 @@
     transition: filter 0.28s ease-out;
   }
 
-  .rankFloating:hover,
-  .rankFloating:focus-visible {
+  .rankFloating[data-compact]:hover,
+  .rankFloating[data-compact]:focus-visible {
     filter: brightness(1.1) saturate(1.1);
     --pixel-gleam-dur: 1.25s;
     --pixel-gleam-stagger: 11ms;
   }
 
   /* 结算时那枚 SUBMIT 也叠进画布（站 EXIT 的位置 —— 结算时 EXIT 本来就不出现） */
-  .actions .submitBadge {
+  [data-compact] .actions .submitBadge {
     position: absolute;
     right: 10px;
     top: 52px;
     transform: none;
+    pointer-events: auto;
     align-self: auto;
     animation: none;
   }
@@ -677,18 +686,18 @@
    1px 内边距，画布就少 2.6px 宽 —— 把用不到的空隙收掉，画布能大一圈。
    触控目标本身（56px 的虚拟按键）不动，那是可用性的底线。 */
 @media (max-width: 1011px), (max-height: 700px) {
-  .actions {
+  .actions[data-compact] {
     padding: 10px var(--site-spacing);
   }
 
-  .touchPad {
+  .touchPad[data-compact] {
     padding-top: 8px;
   }
 
   /* 窄屏下 HUD 从三栏 grid 变成两栏 flex（生命 / 分数），分数因此贴到了右端 ——
      正好压在上方那枚 32px 的音效开关上（实测「Your score: 0」被它盖掉一半）。
      把 HUD 的右边界往里收，让开开关的宽度 + 它的 10px 边距。 */
-  .hud {
+  [data-compact] .hud {
     right: 52px;
   }
 }

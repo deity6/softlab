@@ -574,6 +574,15 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
       <div
         ref={wrapperRef}
         className={styles.wrapper}
+        /**
+         * 「紧凑版式」开关 —— 只给实验室那版加（`topBar` 是它的标志）。
+         *
+         * 窄屏下实验室要把 UI 全部叠进画幅（画布宽度是按剩余高度反推的，画布以外
+         * 每占 1px 它就窄 2.6px）；而独立站那边画布本来就够大，保持「画布 + 下方栏」
+         * 的原布局更好。两个站共用同一份组件 CSS，就用这个属性分流 ——
+         * 不然改一边必然带坏另一边（踩过：独立站的 PLAY 被一起挪进画布了）。
+         */
+        data-compact={topBar ? '' : undefined}
         style={{
           '--grid-x': GRID_X,
           '--grid-x-narrow': LAYOUT_NARROW.gridX,
@@ -647,6 +656,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
         <button
           type="button"
           className={styles.rankFloating}
+            data-compact={topBar ? '' : undefined}
           onClick={() => openBoard('top')}
           aria-label={BOARD_TEXT.topTitle}
         >
@@ -658,7 +668,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
           不再占据画布以外的高度 —— 画布宽度是按剩余高度反推的，它每占 1px，
           画布就窄 2.6px。方向键在左、跳跃在右，按手游的习惯摆。 */}
       {!blocked && touchInput && inGame && !state.gameOver && (
-        <div className={styles.touchPad}>
+        <div className={styles.touchPad} data-compact={topBar ? '' : undefined}>
           <div className={styles.touchGroup}>
             <button
               className={styles.touchKey}
@@ -689,7 +699,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
       )}
 
       {!blocked && (
-        <div className={styles.actions}>
+        <div className={styles.actions} data-compact={topBar ? '' : undefined}>
           <Eyebrow
             className={styles.heroEyebrow}
             labelL={eyebrowLeft}

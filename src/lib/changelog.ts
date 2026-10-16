@@ -21,9 +21,20 @@ export interface ChangeEntry {
 }
 
 /** Bump the last number here on every change. */
-export const VERSION = 'V0.0.46';
+export const VERSION = 'V0.0.47';
 
 export const ENTRIES: ChangeEntry[] = [
+  {
+    version: 'V0.0.47',
+    date: '2026-10-17',
+    title: '修实验 04 移动端：PLAY 点不动、以及独立站被一起改坏',
+    items: [
+      '窄屏的「紧凑版式」改用 data-compact 属性分流 —— 只有实验室这版把 UI 叠进画幅，独立站保持「画布 + 下方栏」的原布局。两个站共用同一份组件 CSS，之前是直接改的，等于改一边必然带坏另一边',
+      '⚠️ 修：叠在画布上那层是 pointer-events: none（否则会挡住画布上的交互），但里面的动作字忘了把事件收回来 —— 表现就是 PLAY / EXIT 看得见、点不动',
+      '⚠️ 那层还必须是 inset: 0 铺满画布。只贴底部的话它只有 20px 高，里面用 top: 52px 定位的按钮会算到画布外面（DOM 在、坐标也对，页面上什么都没有）',
+      '⚠️ data-compact 挂在 wrapper 上没用 —— 那条下方栏和虚拟按键其实在 wrapper 外面，得把属性挂在它们自己身上',
+    ],
+  },
   {
     version: 'V0.0.46',
     date: '2026-10-17',
