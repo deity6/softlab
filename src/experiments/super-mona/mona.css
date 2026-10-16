@@ -94,6 +94,19 @@
   margin-inline: auto;
 }
 
+/* 窄屏 / 矮屏：**比例要换成 67/26**。
+   宽屏那条公式用的是 94/26，但 `pickLayout()` 在 ≤1011px 时走的是窄屏布局 ——
+   画布是 67:26，不是 94:26。比例用错，算出来的宽度对应的高度就偏小，
+   白白浪费一截垂直空间（实测 844×390 时画布只有 351px 宽，其实能到 368）。
+
+   预留也从 96 改成 136：那 96px 只算了下面那条眉标按钮栏，**没算虚拟按键**
+   （触屏、游戏中才出现，连内边距 70px）。 */
+@media (max-width: 1011px), (max-height: 700px) {
+  .lab--mona > * {
+    width: min(100%, calc((100cqh - 112px) * 67 / 26));
+  }
+}
+
 /* ⚠️ 窄屏下**不要**动 `.lab--mona` 的 `flex` / 高度。
    `.lab` 带 `container-type: size`（size containment），高度一旦不由 flex 定死，
    就没有任何东西能算出它该多高 —— 整块会塌成 0，画布被压没、虚拟按键跑到顶上。
@@ -154,5 +167,19 @@
   .mona-more {
     flex-direction: column;
     gap: 6px;
+    /* 矮屏下这条联动链接不能太占地方 —— 它下面就是画布，多 10px 就是画布少 10px */
+    padding-top: 8px;
+    padding-bottom: 12px;
+  }
+}
+
+/* 横屏手机那类矮视口：整块实验区只有两三百像素高，联动链接的每一行都是
+   从画布嘴里抢来的。压到最小，但保留可点。 */
+@media (max-height: 620px) {
+  .mona-more {
+    gap: 4px;
+    padding-top: 6px;
+    padding-bottom: 8px;
+    font-size: 12.5px;
   }
 }

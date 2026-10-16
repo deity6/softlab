@@ -168,6 +168,32 @@
   outline-offset: 3px;
 }
 
+/* 窄屏下顶部条不开，`TOP` 搬到下面那条栏里（`SuperMona.jsx` 里换了个渲染点）。
+   靠右放，和游戏中的 EXIT（窄屏下改成跟着 flex 流排、靠左）错开。 */
+.actionsRank {
+  position: absolute;
+  right: var(--site-spacing, 24px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: filter 0.28s ease-out;
+}
+
+.actionsRank:hover,
+.actionsRank:focus-visible {
+  filter: brightness(1.1) saturate(1.1);
+  --pixel-gleam-dur: 1.25s;
+  --pixel-gleam-stagger: 11ms;
+}
+
+.actionsRank:focus-visible {
+  outline: 2px solid #e8b44a;
+  outline-offset: 3px;
+}
+
 /* 条里的按键指引按静态流排 —— 外面那条规则带绝对定位，是给「栏内居中」用的 */
 .topBarKeys .controls {
   position: static;
@@ -559,6 +585,28 @@
 @media (prefers-reduced-motion: reduce) {
   .submitBadge {
     animation: none;
+  }
+}
+
+/* ---- 矮屏 / 窄屏：把「画布以下」的那几块压薄 ----
+   横屏手机上整块实验区只有两三百像素高，而画布宽度是按**剩下的高度**反推的
+   （见 `mona.css` 的 `calc((100cqh - Npx) * 67 / 26)`）。所以下面这条栏每多
+   1px 内边距，画布就少 2.6px 宽 —— 把用不到的空隙收掉，画布能大一圈。
+   触控目标本身（56px 的虚拟按键）不动，那是可用性的底线。 */
+@media (max-width: 1011px), (max-height: 700px) {
+  .actions {
+    padding: 10px var(--site-spacing);
+  }
+
+  .touchPad {
+    padding-top: 8px;
+  }
+
+  /* 窄屏下 HUD 从三栏 grid 变成两栏 flex（生命 / 分数），分数因此贴到了右端 ——
+     正好压在上方那枚 32px 的音效开关上（实测「Your score: 0」被它盖掉一半）。
+     把 HUD 的右边界往里收，让开开关的宽度 + 它的 10px 边距。 */
+  .hud {
+    right: 52px;
   }
 }
 

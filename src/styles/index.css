@@ -982,6 +982,19 @@ canvas {
   container-name: stage;
 }
 
+/* 矮屏（横屏手机那一类）下上面那条 `70vh` 的兜底会把整块顶出视口 ——
+   `.exp-page` 是 `min-height: 100dvh` 的 flex 列，`.lab` 又写死了最小高度，
+   于是超出的部分直接压到 `.exp-bar` 上（实测 844×390：两块重叠 34px，
+   实验标题栏和画布糊在一起）。
+
+   有 super-mona 时放开兜底，高度完全交给 flex 分配。限定 `:has()` 是必要的：
+   `.lab` 是所有实验共用的壳，直接改会波及别的实验。 */
+@media (max-height: 620px) {
+  .lab:has(.lab--mona) {
+    min-height: 0;
+  }
+}
+
 .lab__stage {
   position: absolute;
   inset: 0;

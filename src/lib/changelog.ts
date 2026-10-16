@@ -21,9 +21,21 @@ export interface ChangeEntry {
 }
 
 /** Bump the last number here on every change. */
-export const VERSION = 'V0.0.44';
+export const VERSION = 'V0.0.45';
 
 export const ENTRIES: ChangeEntry[] = [
+  {
+    version: 'V0.0.45',
+    date: '2026-10-17',
+    title: '修实验 04 在横屏手机上的排版',
+    items: [
+      '矮屏下实验区不再顶出视口：原来它那条兜底最小高度会把整块推到标题栏上（844×390 实测两块重叠 34px，标题、分数、画布糊在一起）',
+      '画布上方的信息带（分数 / 按键指引 / 音效开关）在窄屏下关闭，这些内容回到画布内 —— 那条带子吃的是「画布上方留白」，窄屏根本没有',
+      '画布宽度公式改用窄屏自己的 67:26（原先错用了宽屏的 94:26），并把下方栏的内边距在矮屏下收紧：844×390 时画布从 353×137 提到 415×152',
+      '「Your score」不再被右上角那枚音效开关盖住',
+      '看榜入口在窄屏下从画布上方挪到下方那条栏里',
+    ],
+  },
   {
     version: 'V0.0.44',
     date: '2026-10-17',

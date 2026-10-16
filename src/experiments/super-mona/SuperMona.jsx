@@ -138,6 +138,28 @@ function SoundIcon({ muted }) {
  */
 const PORTRAIT_QUERY = '(orientation: portrait) and (pointer: coarse)';
 
+/**
+ * `topBar` 版式只在「画布上方真的有空带」时成立 —— 也就是又宽又高的时候。
+ *
+ * 窄屏 / 矮屏（横屏手机那一类）根本没有这条空带，硬放上去它会整个压到实验标题栏
+ * （`.exp-bar`）上：实测 844×390 时两块完全重合，分数、按键指引和音效开关全叠在
+ * 「NO. 04 超级 MONA …」那行字上。
+ *
+ * 断点和实验室那边对齐（`index.css` 里 `max-height: 620px` 那条）。
+ */
+const ROOMY_QUERY = '(min-width: 1012px) and (min-height: 621px)';
+
+function useRoomy() {
+  const [roomy, setRoomy] = useState(() => window.matchMedia(ROOMY_QUERY).matches);
+  useEffect(() => {
+    const query = window.matchMedia(ROOMY_QUERY);
+    const onChange = () => setRoomy(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
+  return roomy;
+}
+
 function usePortrait() {
   const [portrait, setPortrait] = useState(() => window.matchMedia(PORTRAIT_QUERY).matches);
   useEffect(() => {
@@ -394,6 +416,15 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
 
   const blocked = !supported || reducedMotion;
   const portrait = usePortrait();
+  const roomy = useRoomy();
+  /**
+   * 顶部条到底开不开。
+   *
+   * `topBar` 这个 prop 表达的是「这个宿主页面上方有空带」（实验室有、独立站没有）；
+   * `roomy` 表达的是「**此刻**真的有」。两者要同时成立 —— 窄屏下宿主页面再宽也没用，
+   * 那条空带早被挤没了，硬放上去就会压到实验标题栏上。
+   */
+  const showTopBar = topBar && !blocked && roomy;
   const action = state.gameOverScreenVisible ? 'playAgain' : inGame ? 'exitGame' : 'playGame';
   // 竖屏下不让开局：开了也只能看见一条缝。按钮留着但点不动，提示层会说明为什么。
   const buttonDisabled = showActions || portrait || (state.gameOver && !state.gameOverScreenVisible);
@@ -520,7 +551,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
           ⚠️ 它必须在 wrapper **外面** —— wrapper 带 `overflow: hidden`（要裁画布
           的圆角与缩放误差），放里面会被整个裁掉，`bottom: 100%` 也救不回来。
           负 margin 让它不占位：画布位置一点不动，它自己浮在上方那段留白里。 */}
-      {topBar && !blocked && (
+      {showTopBar && (
         <div className={styles.topBar}>
           {/* 左上角：看榜入口。**不进游戏也能点** —— 结算时那枚金色 SUBMIT 要先玩完
               一局才出现，而排行榜本身是所有访问者都能看的。 */}
@@ -556,7 +587,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
 
         {/* 音效开关。原站把它塞在 HUD 第三格里，而那个 HUD 只在游戏进行中
             存在 —— 于是没开局的时候整页找不到声音开关。 */}
-        {!blocked && !topBar && soundEl}
+        {!blocked && !showTopBar && soundEl}
 
         {/* 竖屏挡住这一块 —— 只盖画布，不盖整页。一进来就全屏要求横屏，别人
             连这是个什么网站都还没看明白。 */}
@@ -578,7 +609,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
                 </span>
                 {/* 分数占中间那一栏。`topBar` 版式下它搬去了画布外那条顶部条，
                     这里就不重复渲染。 */}
-                {!topBar && <div className={styles.scoreControls}>{scoreEl}</div>}
+                {!showTopBar && <div className={styles.scoreControls}>{scoreEl}</div>}
               </div>
             )}
 
@@ -653,6 +684,19 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
               它们绝对是定位的，不占 flex 位置，眉标该多宽还是多宽。 */}
           {actionButton}
 
+          {/* 窄屏下顶部条不开，`TOP` 就搬到这条栏里来（靠右）。
+              看榜入口不该因为屏幕变窄就消失 —— 排行榜本来就是所有人都能看的。 */}
+          {board && !showTopBar && (
+            <button
+              type="button"
+              className={styles.actionsRank}
+              onClick={() => openBoard('top')}
+              aria-label={BOARD_TEXT.topTitle}
+            >
+              <PixelWord text={BOARD_TEXT.top} blockPx={blockPx * 0.5} tone="gold" />
+            </button>
+          )}
+
           {/* 结算时那枚金色的 `SUBMIT`。它站在 `EXIT` 平时的位置上（结算时 EXIT
               本来就不出现），所以栏里不会挤。**点它之前什么都不发** —— 不想上传的
               玩家，服务端一个字节都收不到。 */}
@@ -669,7 +713,7 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
 
           {/* 控制提示。`topBar` 版式下它搬去了画布外那条顶部条（而且**待机时也
               在**）；这里只在独立站那种版式下渲染 —— 那条栏平时被 PLAY 占着中间。 */}
-          {!topBar && showScoreBoard && !state.gameOver && controlsEl}
+          {!showTopBar && showScoreBoard && !state.gameOver && controlsEl}
         </div>
       )}
 
