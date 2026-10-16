@@ -1735,3 +1735,47 @@
   color: var(--mo-primary-ink);
   box-shadow: var(--mo-shadow-lift);
 }
+
+/* ==========================================================================
+ * Tracers —— 五个小方块沿按钮边框绕圈
+ * --------------------------------------------------------------------------
+ * 来自 githubuniverse.com 的 LiveButton 装饰。方块是 14×5 的**长条**，不是
+ * 方块。轨迹比按钮本体向外各扩 5px，靠 JS 写进 transform 的偏移对齐到边框
+ * 上；`.mo-btn` 基础样式没有 overflow:hidden，所以溢出部分不会被裁掉。
+ *
+ * 与原站的一处**故意偏离**：原站在 hover / focus-within 时把整层淡出，给真
+ * 交互让位 —— 那是个真的 CTA。这里按钮是拿来展示效果的，用户一定会 hover
+ * 过来看，隐藏就等于永远看不到，所以保留常亮。
+ * ========================================================================== */
+
+/* ⚠️ 层名必须和效果名分开。按钮自己就带着 `mo-tracers` 类（表示"这个按钮挂了
+   这个效果"），层要是也叫 `mo-tracers`，下面这几条会把按钮**一起**选中 ——
+   `inset: 0` 把按钮拉成绝对定位填满整个舞台，`pointer-events: none` 让它点不动，
+   结果就是"效果没出现、按钮也变形了"。这个坑踩过一次，别改回去。 */
+
+.mo-tracers-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--mo-dur-fast) var(--mo-ease-standard);
+}
+
+.mo-tracers-layer.is-on {
+  opacity: 1;
+}
+
+.mo-tracer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 5px;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mo-tracers-layer {
+    display: none;
+  }
+}

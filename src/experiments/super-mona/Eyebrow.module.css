@@ -1,0 +1,61 @@
+/* 原站 chunk 39c7c12b37a5fb06.css（Eyebrow）逐条翻译 */
+
+.eyebrow {
+  display: block;
+}
+
+.labels {
+  position: relative;
+  display: flex;
+  font-family: var(--site-fontStack-monospace);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 425;
+  line-height: 1.5;
+  letter-spacing: 0.15px;
+  color: var(--brand-color-text-default);
+}
+
+.labelLeft {
+  flex: 1 1;
+}
+
+.labelRight {
+  flex: 1 1;
+  position: relative;
+}
+
+@media (max-width: 1011px) {
+  .labelRight {
+    flex: 0 1 50%;
+  }
+}
+
+.accentLabelRight {
+  color: var(--brand-color-text-accent);
+}
+
+.labelPlaceholder {
+  visibility: hidden;
+}
+
+.labelPlaceholder + .labelWrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.text {
+  transition: color 0.4s ease-in-out;
+}
+
+.cursor {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: var(--site-color-accent);
+}
+
+.hideRightCursor .labelRight .cursor {
+  display: none;
+}

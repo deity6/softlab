@@ -131,6 +131,12 @@ const zh = {
   'ct.hud.sub': '十四层云海 · 悬索桥 · 蒸汽',
   'ct.hud.subEn': 'CLOUDS · BRIDGE · STEAM',
 
+  'mona.title': '超级 Mona',
+  'mona.back': '返回列表',
+  'mona.bar.note': '网格跑酷 · 按开始才变成游戏',
+  'mona.more': '单独打开这个项目',
+  'mona.moreNote': '含官网拆解 · 精灵图逐帧解剖 · 鼠标拖尾复刻',
+
   'ct.panel.open': '光线面板',
   'ct.panel.title': '光线',
   'ct.panel.close': '收起面板',
@@ -392,15 +398,18 @@ const zh = {
   'btn.success-morph.cn': '成功状态',
   'btn.progress.cn': '进度按钮',
   'btn.flip-3d.cn': '3D 翻转',
+  'btn.tracers.cn': '方块环游',
   'btn.grp.paint': '颜色与填充',
   'btn.grp.motion': '位移与形变',
   'btn.grp.click': '按压与粒子',
   'btn.grp.state': '加载与完成',
+  'btn.grp.alive': '常驻动效',
   'btn.more': '看详情',
   'btn.needsJs': '需 JS',
   'btn.needsJs.full': '需 JS 行为层',
   'btn.group.hover': '悬停触发',
   'btn.group.click': '点击触发',
+  'btn.group.alive': '不用操作，它自己在动',
 
   'btn.fill-sweep.do': '悬停，颜色从左铺满整个按钮。',
   'btn.fill-sweep.how': '一个铺满按钮的色块，平时被横向压扁成 0 宽，悬停时再展开。',
@@ -434,6 +443,8 @@ const zh = {
   'btn.progress.how': '一层半透明的色块按百分比改宽度，右边同步数字；越接近 100% 走得越慢，到 100% 整体转成完成色。',
   'btn.flip-3d.do': '点一下，整块翻个面，颜色跟着翻过来；再来一下翻回去。',
   'btn.flip-3d.how': '正反两面背靠背贴着绕 Y 轴转 180°，同时一层颜色从底/顶铺满；翻转与填充共用同一条时长与缓动。',
+  'btn.tracers.do': '不用碰它 —— 五个小方块自己沿着边框一圈圈跑。',
+  'btn.tracers.how': '把按钮的周长摊成一条线，每个方块按进度在线上取点，走到竖边时自己转 90°；五块依次晚 0.15 秒出发，整段 4.2 秒跑完。',
 
   /* ---------- 单个按钮的详情页 ---------- */
   'bp.back': '← 返回 Buttons',
@@ -527,6 +538,12 @@ const en: Record<MsgKey, string> = {
   'ct.hud.title.b': 'Train.',
   'ct.hud.sub': '14 layers of cloud · a suspension bridge · steam',
   'ct.hud.subEn': '14 CLOUD LAYERS · SUSPENSION BRIDGE · STEAM',
+
+  'mona.title': 'Super Mona',
+  'mona.back': 'Back to the list',
+  'mona.bar.note': 'grid runner · press play to turn it into a game',
+  'mona.more': 'Open the standalone project',
+  'mona.moreNote': 'site breakdown · frame-by-frame sprite anatomy · cursor-trail recreation',
 
   'ct.panel.open': 'Light panel',
   'ct.panel.title': 'Light',
@@ -827,15 +844,18 @@ const en: Record<MsgKey, string> = {
   'btn.success-morph.cn': 'Success Morph',
   'btn.progress.cn': 'Progress',
   'btn.flip-3d.cn': '3D Flip',
+  'btn.tracers.cn': 'Tracers',
   'btn.grp.paint': 'Colour & Fill',
   'btn.grp.motion': 'Shift & Shape',
   'btn.grp.click': 'Press & Sparks',
   'btn.grp.state': 'Load & Done',
+  'btn.grp.alive': 'Always On',
   'btn.more': 'See how it works',
   'btn.needsJs': 'Needs JS',
   'btn.needsJs.full': 'Needs the JS behaviour layer',
   'btn.group.hover': 'on hover',
   'btn.group.click': 'on click',
+  'btn.group.alive': 'nothing to do — it runs on its own',
 
   'btn.fill-sweep.do': 'Hover, and the colour sweeps in from the left until the whole button is filled.',
   'btn.fill-sweep.how': 'A block the size of the button, squashed flat to zero width until hover, then let out.',
@@ -869,6 +889,8 @@ const en: Record<MsgKey, string> = {
   'btn.progress.how': 'A translucent block changes width to the percentage, with the number keeping pace beside it. The closer to 100% the slower it goes, and at 100% the whole thing turns to the done colour.',
   'btn.flip-3d.do': 'Click it and the whole thing turns over, colour and all. Click again and it turns back.',
   'btn.flip-3d.how': 'Front and back sit back to back and rotate 180° around the Y axis while a colour fills in from the bottom or top. The flip and the fill share one duration and one easing.',
+  'btn.tracers.do': 'Nothing to press — five small blocks run laps around the border on their own.',
+  'btn.tracers.how': 'The button\u2019s perimeter is unrolled into one straight line; each block picks a point along it by progress, and turns 90° by itself when it reaches a vertical edge. The five set off 0.15s apart, and the whole lap takes 4.2s.',
 
   /* ---------- one button, up close ---------- */
   'bp.back': '← Back to Buttons',

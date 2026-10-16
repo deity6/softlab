@@ -37,7 +37,7 @@ export interface Experiment {
   /** what the visitor will be able to do once it opens */
   wipMissing?: { zh: string[]; en: string[] };
   /** cheap animated thumbnail drawn on the index card */
-  thumb: 'jelly' | 'field' | 'cat' | 'train';
+  thumb: 'jelly' | 'field' | 'cat' | 'train' | 'mona';
   Component: ExperimentComponent;
 }
 
@@ -46,6 +46,7 @@ export interface Experiment {
 const SoftMatter = lazy(() => import('./soft-matter/SoftMatter'));
 const CanvasLab = lazy(() => import('./canvas-lab/CanvasLab'));
 const CloudTrain = lazy(() => import('./cloud-train/CloudTrain'));
+const SuperMonaLab = lazy(() => import('./super-mona/SuperMonaLab'));
 const CatLab = lazy(() => import('./soft-cat/CatLab'));
 
 /**
@@ -126,8 +127,34 @@ export const EXPERIMENTS: Experiment[] = [
     Component: CloudTrain,
   },
   {
-    id: 'soft-cat',
+    id: 'super-mona',
     no: '04',
+    title: 'Super Mona',
+    sub: {
+      zh: '网格跑酷 · 方阵里藏着一台游戏机',
+      en: 'Grid runner · a game hidden in the lattice',
+    },
+    lede: {
+      zh: '一片 94 × 26 的方块方阵，平时只是安静的点阵。鼠标扫过去，蹲在里面的 Mona 会转头看你；按开始，方块就成了地形 —— 顶碎它、踩虫子、接住掉下来的图标，跳得不好会少一条命。',
+      en:
+        'A 94 × 26 lattice of blocks that just sits there quietly. Sweep the cursor across it and the Mona crouching inside turns to watch you; press play and the lattice becomes terrain — break it, stomp the bugs, catch what falls, and lose a life if you misjudge a jump.',
+    },
+    tags: {
+      zh: ['网格', '跑酷', '转头跟随', '二段跳'],
+      en: ['Lattice', 'Runner', 'Cursor follow', 'Double jump'],
+    },
+    source: {
+      label: 'githubuniverse.com · WebGLSuperMona',
+      href: 'https://githubuniverse.com/',
+    },
+    collected: { zh: 'GitHub Universe 2026 · 首屏彩蛋', en: 'GitHub Universe 2026 · hero easter egg' },
+    status: 'live',
+    thumb: 'mona',
+    Component: SuperMonaLab,
+  },
+  {
+    id: 'soft-cat',
+    no: '05',
     title: 'Soft Cat',
     sub: { zh: '软体猫 · 一只身子很长的猫', en: 'Soft cat · a very long cat' },
     lede: {

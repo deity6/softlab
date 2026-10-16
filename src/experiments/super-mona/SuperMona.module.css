@@ -1,0 +1,355 @@
+/* 原站 chunk 4963（ba03741f5205bf29.css）逐条翻译，仅把 Primer 的 CSS 变量替换为具体值 */
+
+.wrapper {
+  position: relative;
+  overflow: hidden;
+  box-sizing: content-box;
+  width: 100%;
+  isolation: isolate;
+  font-family: var(--font-mona-sans);
+  aspect-ratio: var(--grid-x-narrow) / var(--grid-y);
+}
+
+@media (min-width: 1012px) {
+  .wrapper {
+    aspect-ratio: var(--grid-x) / var(--grid-y);
+  }
+}
+
+.wrapper canvas {
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fallbackImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hud {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  left: 20px;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  margin: 0;
+  font-weight: 700;
+  pointer-events: none;
+  animation: hudEnter 0.45s ease-out both;
+}
+
+.lives {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 62px;
+  min-height: 20px;
+}
+
+.heart {
+  width: 18px;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+/* 操作提示整行。原站不给字号（继承 16px），压在 22px 的键帽旁边偏大；
+   收成 13px，让「← → move · Space jump」读起来是一整句而不是四块东西。 */
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  color: #4a524e;
+  font-size: 13px;
+  text-align: center;
+  white-space: nowrap;
+  transition: transform 0.45s ease-in;
+}
+
+.controlsHidden {
+  transform: translateY(calc(-100% - 32px));
+}
+
+/* ---- 触屏虚拟按键 ---- */
+/* 摆在画布**下面**，不叠在画布上：窄屏的 Wrapper 按 67:26 算出来只有 140px 高，
+   56px 的按键压上去会吃掉小半屏。方向键在左、跳跃在右，按手游的习惯摆。
+   `touch-action: none` 必须写，否则按住按键会被浏览器当成滚动页面。 */
+.touchPad {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px var(--site-spacing) 0;
+}
+
+.touchGroup {
+  display: flex;
+  gap: 10px;
+}
+
+.touchKey {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.74);
+  color: #0d1117;
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.07);
+  font-family: var(--brand-fontStack-sansSerif);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touchKey:active {
+  background: #0d1117;
+  border-color: #0d1117;
+  color: #fff;
+  box-shadow: none;
+}
+
+.touchJump {
+  font-size: 22px;
+}
+
+.controlAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 操作键帽。
+   原站是 Primer 风格的白底圆角键帽（`padding:12px` 还把键帽撑得比字还高），
+   压在浅色网格上偏「浮」，圆角也和这个画面的方块语言不搭。改成画面同款的
+   实心方角小块 —— 和地形方块同一套视觉，一眼就知道是「这个游戏里的东西」。
+   尺寸收成固定的 22px，底下压一道 2px 内阴影做键帽的厚度。
+   ⚠️ 字体用的是本站的 `--site-fontStack-monospace`（Mona Sans Mono）：原站写的
+   是它自己 page.css 里的 `--font-mono`，那个变量这边没有，会静默掉回默认字体。 */
+.controlKey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border: none;
+  border-radius: 2px;
+  background: #4a4f4c;
+  color: #e9edec;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.22);
+  font-family: var(--site-fontStack-monospace);
+  font-size: 12px;
+  font-weight: 425;
+  line-height: 1;
+}
+
+.score {
+  white-space: nowrap;
+}
+
+.scoreControls {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 16px;
+}
+
+.soundButton {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  color: #000;
+  background: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.soundButton:hover {
+  color: #fff;
+  background: #777;
+}
+
+.soundButton:focus-visible {
+  outline: none;
+  color: #000;
+  background: #fff;
+}
+
+.soundButton > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.gameOverScoreBoard {
+  position: absolute;
+  top: calc(3 / var(--grid-y) * 100% + 1px);
+  left: calc(50% + var(--score-board-offset-x) / var(--grid-x) * 100%);
+  z-index: 1;
+  width: calc(21 / var(--grid-x) * 100% + 1px);
+  aspect-ratio: 21 / 8;
+  color: #000;
+  pointer-events: none;
+  transform: translate(-50%);
+  container-type: inline-size;
+}
+
+.gameOverScoreContent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1;
+  text-align: center;
+}
+
+.gameOverScoreLabel {
+  font-size: 4cqw;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.gameOverScore {
+  margin-top: 4cqw;
+  font-size: min(14cqw, calc(48cqw / var(--score-character-count)));
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-top: 1px solid var(--site-color-border);
+  padding: var(--site-spacing);
+}
+
+/* 原站在窄屏 / 触屏上把整条 actions 藏掉 —— 那是个真 CTA，手机上让位给布局。
+   实验里不能这么干：藏了按钮就等于开不了局。改成窄屏下竖排、撑满、间距收紧。 */
+@media (hover: none) and (pointer: coarse), (max-width: 1011px) {
+  /* HUD 的三栏 grid（生命 / 键盘提示 / 分数）在 390px 宽下挤成一团，
+     分数直接被顶出屏幕。窄屏改成两栏 flex —— 中间那栏本来就要隐藏。 */
+  .hud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    left: 14px;
+    right: 14px;
+  }
+
+  /* 已经有虚拟按键了，键盘提示是重复信息，窄屏让位 */
+  .controls {
+    display: none;
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding-top: 4px;
+  }
+
+  /* 眉标在窄屏下用 16px 会横着溢出，收到 12px；`> div` 是 Eyebrow 的 Labels */
+  .heroEyebrow > div {
+    font-size: 12px;
+  }
+
+  .playButton {
+    width: 100%;
+  }
+}
+
+.heroEyebrow {
+  flex: 1 1;
+  min-width: 0;
+}
+
+/* Eyebrow 根 div 里的第二层（Labels）—— 原 `.WebGLSuperMona_HeroEyebrow >div` */
+.heroEyebrow > div {
+  gap: 4px;
+}
+
+/* LabelLeft / LabelRight */
+.heroEyebrow > div > div {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Play / Exit game 按钮。
+   原本是逐条照搬原站的 Primer `Button variant="secondary"`：`padding:16px` +
+   `min-height:43px` + `backdrop-filter: blur(20px)`，算下来 66 × 56px —— 一个
+   带毛玻璃的厚按钮，放在这块浅色网格上太沉。按用户要求改简洁：白底细边、
+   定高 40px、横向留白，hover 直接反色；圆角和配色都收进画面的方块语言。 */
+.playButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid #b6bfb8;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #0d1117;
+  font-family: var(--brand-fontStack-sansSerif);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease-out, border-color 0.15s ease-out,
+    color 0.15s ease-out;
+}
+
+.playButton:hover:not(:disabled) {
+  background-color: #0d1117;
+  border-color: #0d1117;
+  color: #fff;
+}
+
+.playButton:focus-visible {
+  outline: 2px solid #08872b;
+  outline-offset: 2px;
+}
+
+.playButton:disabled {
+  border-color: #d2d9d4;
+  background-color: #f4f6f5;
+  color: #9aa4a0;
+  cursor: not-allowed;
+}
+
+@keyframes hudEnter {
+  0% {
+    transform: translateY(calc(-100% - 16px));
+  }
+  to {
+    transform: translateY(0);
+  }
+}

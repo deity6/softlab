@@ -27,4 +27,6 @@
   # CSP：脚本全部来自自身；样式需要 'unsafe-inline'，因为 React 用 style 属性
   # 定位 canvas（这是 CSP2 对 style 属性的要求，不是偷懒）。
   # blob: 留给「导出单文件 HTML」的下载路径。
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+  # static.cloudflareinsights.com 是 Web Analytics 的 beacon 脚本源；
+  # cloudflareinsights.com 是 beacon 上报通道（与脚本不同域，必须单独放行）。
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob: https://cloudflareinsights.com https://static.cloudflareinsights.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'

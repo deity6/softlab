@@ -891,6 +891,117 @@
   }
 
   /* ---------------------------------------------------------------------- *
+   * Tracers —— 五个小方块沿按钮边框绕圈
+   * ---------------------------------------------------------------------- *
+   * 取自 githubuniverse.com 的 LiveButton 装饰（直播期间挂在 CTA 上）。原站
+   * 跑完一轮就把 data-tracing 摘掉；实验室里的按钮是拿来看的，一次性扫过
+   * 很容易正好错过，所以这里改成「跑一轮 → 停 2 秒 → 再跑」的无限循环。
+   *
+   * 原站参数照抄：
+   *   5 色 #c05200 #583af7 #ae85ff #bba00a #08872b
+   *   轨迹 = 矩形周长，向外各扩 5px，起点在**上边中点**，顺时针
+   *   单块走完一圈 3.6s，每块晚 0.15s 出发，整段 4.2s
+   *   进度用 e - 0.8/(2π)·sin(2πe)（起步慢、中段快、收尾慢）
+   *   走到竖边时方块自己转 90°
+   *
+   * ⚠️ reduced-motion 下这里**直接不渲染**。这和 ripple / magnetic 那类
+   *    **交互反馈**不同 —— 那些关了动画也得有反馈，所以行为层刻意不 bail；
+   *    tracers 没有反馈职责，纯装饰，CSS 那边原站也是 display:none。
+   * ---------------------------------------------------------------------- */
+  function bindTracers(btn) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    // React 重渲染之后 init 可能在同一元素上再走一遍；已经挂过就不再挂第二层。
+    // ⚠️ 层名必须和效果名分开：按钮自己就带着 `mo-tracers` 类，层要是也叫这个，
+    //    `querySelectorAll('.mo-tracers')` 会把按钮和层一起选中（踩过）。
+    if (btn.querySelector(":scope > .mo-tracers-layer")) return;
+
+    const COLORS = ["#c05200", "#583af7", "#ae85ff", "#bba00a", "#08872b"];
+    const LAP = 3.6; // 单块走完一圈（秒）
+    const STEP = 0.15; // 每块比前一块晚出发
+    const RUN = LAP + STEP * (COLORS.length - 1); // 4.2s 整段跑完
+    const HOLD = 2; // 跑完歇 2 秒再重播（实验室加的，原站没有）
+    const CYCLE = RUN + HOLD;
+
+    const layer = document.createElement("span");
+    layer.className = "mo-tracers-layer";
+    layer.setAttribute("aria-hidden", "true");
+
+    const dots = COLORS.map((color) => {
+      const dot = document.createElement("span");
+      dot.className = "mo-tracer";
+      dot.style.backgroundColor = color;
+      layer.appendChild(dot);
+      return dot;
+    });
+    btn.appendChild(layer);
+
+    // 轨迹比按钮本体向外各扩 5px —— 方块正好骑在边框上
+    let w = 0;
+    let h = 0;
+    const measure = () => {
+      w = btn.offsetWidth + 10;
+      h = btn.offsetHeight + 10;
+    };
+    measure();
+
+    const ease = (e) => e - (0.8 / (2 * Math.PI)) * Math.sin(2 * Math.PI * e);
+
+    /** 把「沿周长走过的距离」换算成矩形上的一点；竖边标记出来用于旋转 */
+    const pointAt = (dist) => {
+      const per = 2 * (w + h);
+      // +w/2 把起点从左上角挪到**上边中点**
+      let p = ((dist + w / 2) % per + per) % per;
+      if (p < w) return { x: p, y: 0, vertical: false };
+      p -= w;
+      if (p < h) return { x: w, y: p, vertical: true };
+      p -= h;
+      if (p < w) return { x: w - p, y: h, vertical: false };
+      p -= w;
+      return { x: 0, y: h - p, vertical: true };
+    };
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(btn);
+
+    let raf = 0;
+    let t0 = 0;
+    const frame = (now) => {
+      // React 换页把按钮摘掉之后自己停掉，不留悬空的 rAF
+      if (!btn.isConnected) {
+        ro.disconnect();
+        raf = 0;
+        return;
+      }
+      if (!t0) t0 = now;
+      const elapsed = ((now - t0) / 1000) % CYCLE;
+      const running = elapsed < RUN;
+      layer.classList.toggle("is-on", running);
+
+      if (running) {
+        const per = 2 * (w + h);
+        for (let i = 0; i < dots.length; i++) {
+          const prog = Math.min(Math.max((elapsed - STEP * i) / LAP, 0), 1);
+          const { x, y, vertical } = pointAt((Math.floor(prog) + ease(prog % 1)) * per);
+          dots[i].style.transform =
+            "translate(" + (x - 5) + "px, " + (y - 5) + "px) translate(-50%, -50%) rotate(" +
+            (vertical ? 90 : 0) + "deg)";
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    };
+
+    // 进视口才开始，首屏之外不白烧帧
+    const io = new IntersectionObserver((entries) => {
+      if (!entries[0].isIntersecting) return;
+      io.disconnect();
+      measure();
+      raf = requestAnimationFrame(frame);
+    });
+    io.observe(btn);
+  }
+
+  /* ---------------------------------------------------------------------- *
    * 初始化
    * ---------------------------------------------------------------------- */
 
@@ -899,6 +1010,7 @@
     "ripple", "glow-pulse", "liquid-fill", "split-reveal", "shadow-lift",
     "loading-morph", "success-morph", "progress", "icon-morph", "text-swap",
     "elastic-stretch", "blob-morph", "particle-burst", "flip-3d", "cursor-spot",
+    "tracers",
   ];
 
   /** 需要在初始化时构建 DOM 的效果（其余为纯 CSS） */
@@ -918,6 +1030,8 @@
     "elastic-stretch": bindElasticStretch,
     "arrow-slide": bindArrowSlide,
     "flip-3d": bindFlip,
+    // 不绑指针，只自己跑循环；挂在这里是因为同样需要初始化时建 DOM + 起时钟
+    tracers: bindTracers,
   };
 
   /** 声明式点击行为：data-mo-click */

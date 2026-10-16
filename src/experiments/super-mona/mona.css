@@ -1,0 +1,153 @@
+/* ==========================================================================
+ * SuperMona —— 原站 design token、自托管字体、实验外壳
+ * --------------------------------------------------------------------------
+ * 这个文件只被 `SuperMona.tsx` 引入，而那个组件是 lazy 的 —— 所以字体和变量
+ * 只在真正打开这个实验时才下载，不会拖累首页。
+ *
+ * 原站把这些变量定义在 `:root` 上（Primer Brand / universe.site）。搬进实验室
+ * 时收进 `.mona-scope`：本站自己也有一堆 `--font-*` / `--mo-*`，摆在一起迟早
+ * 撞车。字体是原站自托管的可变字体（weight 200–900），一并搬过来才能保证字形
+ * 一致 —— 少了它连按钮宽度都会差 2px，眉标的等宽字也会变样。
+ * ========================================================================== */
+
+@font-face {
+  font-family: 'Mona Sans';
+  src: url('./assets/fonts/MonaSansVF-opsz-wght.woff2') format('woff2 supports variations'),
+    url('./assets/fonts/MonaSansVF-opsz-wght.woff2') format('woff2-variations');
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mona Sans Mono';
+  src: url('./assets/fonts/MonaSansMonoVF-wght.woff2') format('woff2 supports variations'),
+    url('./assets/fonts/MonaSansMonoVF-wght.woff2') format('woff2-variations');
+  font-weight: 200 900;
+  font-display: swap;
+}
+
+.mona-scope {
+  /* 网格尺寸。组件会按窗口宽度 inline 覆盖这三个值，这里只是兜底 ——
+     少了它，Wrapper 的 aspect-ratio 会整条失效（高度算不出来）。 */
+  --grid-x: 94;
+  --grid-x-narrow: 67;
+  --grid-y: 26;
+
+  --brand-color-text-default: #000;
+  --brand-color-text-accent: #08872b;
+  --site-color-accent: #08872b;
+  --site-color-border: #d2d9d4;
+  --site-border-width: 1px;
+  --site-spacing: 24px;
+  --font-mona-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
+    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --brand-fontStack-sansSerif: var(--font-mona-sans);
+  --brand-fontStack-monospace: 'Mona Sans Mono', monospace;
+  --site-fontStack-monospace: var(--brand-fontStack-monospace);
+}
+
+/* `--site-spacing` 在原站是两个值（窄屏 20px / 宽屏 24px），沿用同一断点 */
+@media (max-width: 1011px) {
+  .mona-scope {
+    --site-spacing: 20px;
+  }
+}
+
+/* `.sr-only` —— Eyebrow 的可视层对读屏隐藏，完整文案走这个类输出 */
+.mona-scope .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --------------------------------------------------------------------------
+ * 实验外壳
+ * ------------------------------------------------------------------------ */
+
+/* 原站 Wrapper 自带 `aspect-ratio: 94/26`（窄屏 67/26），高度不用我们操心。
+   这里只给一块干净的浅色底 —— 角色是黑描边 + 浅填充，画在深色底上轮廓会糊。
+   ⚠️ `color` 必须显式定成黑：本站是深色主题，正文色继承下来是浅的，而 HUD
+   （分数 / 生命 / 操作提示）是直接压在浅色网格上的，不写就整条看不见。 */
+.lab--mona {
+  background: #e9edec;
+  color: #000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* 原站里 Wrapper 直接铺满内容区；实验室给它一个上限，免得 94 格网格在超宽屏
+   上被拉成一条砖带。两块（画布 + 眉标按钮栏）一起居中。 */
+.lab--mona > * {
+  width: min(100%, 1180px);
+  margin-inline: auto;
+}
+
+/* ⚠️ 窄屏下**不要**动 `.lab--mona` 的 `flex` / 高度。
+   `.lab` 带 `container-type: size`（size containment），高度一旦不由 flex 定死，
+   就没有任何东西能算出它该多高 —— 整块会塌成 0，画布被压没、虚拟按键跑到顶上。
+   试过一次，撤回。（画布本身是 67:26 的扁比例，窄屏上下留白是正常的。） */
+
+/* 画布那块自己撑比例 */
+.lab--mona canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 降级图（WebGL 不可用 / reduced-motion）。
+   ⚠️ 选择器必须精确到降级图本身。HUD 里的生命图标同样是
+   `<img aria-hidden="true">`，早先写成 `img[aria-hidden='true']` 时把三颗心
+   一起拉满了 —— 每颗 148 × 138px（原图才 16 × 15），整条 HUD 被盖住。 */
+.lab--mona [class*='fallback'] {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* 项目联动：指向独立小游戏项目的那条链接。
+   它落在浅色域里，所以蓝色用 GitHub 的链接蓝（#0969da），不是本站的强调绿 ——
+   这里要的是「可以点出去」的信号，和实验内部的操作色区分开。 */
+.mona-more {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: 15px var(--site-spacing) calc(var(--site-spacing) + 6px);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+}
+
+.mona-more__link {
+  color: #0969da;
+  text-decoration: none;
+  border-bottom: 1px solid rgb(9 105 218 / 0.35);
+  padding-bottom: 1px;
+  transition:
+    color 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+.mona-more__link:hover {
+  color: #0550ae;
+  border-bottom-color: #0550ae;
+}
+
+.mona-more__note {
+  color: #6b7472;
+  font-size: 12px;
+}
+
+@media (max-width: 1011px) {
+  .mona-more {
+    flex-direction: column;
+    gap: 6px;
+  }
+}

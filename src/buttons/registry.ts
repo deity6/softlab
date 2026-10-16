@@ -14,7 +14,7 @@ import { durationLabel, type DurationToken, type EasingName } from '../motion/to
  * actually asked for them.
  */
 
-export type ButtonGroupId = 'paint' | 'motion' | 'click' | 'state';
+export type ButtonGroupId = 'paint' | 'motion' | 'click' | 'state' | 'alive';
 
 export interface ButtonEntry {
   /** motion-system effect name — also the route slug */
@@ -66,6 +66,7 @@ export const BUTTON_GROUPS: {
   { id: 'motion', en: 'Shift & Shape', cn: '位移与形变', cnKey: 'btn.grp.motion', howKey: 'btn.group.hover' },
   { id: 'click', en: 'Press & Sparks', cn: '按压与粒子', cnKey: 'btn.grp.click', howKey: 'btn.group.click' },
   { id: 'state', en: 'Load & Done', cn: '加载与完成', cnKey: 'btn.grp.state', howKey: 'btn.group.click' },
+  { id: 'alive', en: 'Always On', cn: '常驻动效', cnKey: 'btn.grp.alive', howKey: 'btn.group.alive' },
 ];
 
 export const BUTTONS: ButtonEntry[] = [
@@ -339,6 +340,23 @@ export const BUTTONS: ButtonEntry[] = [
     label: 'Flip',
     next: 'Flipped',
     click: 'flip',
+  },
+  {
+    id: 'tracers',
+    cnKey: 'btn.tracers.cn',
+    doKey: 'btn.tracers.do',
+    howKey: 'btn.tracers.how',
+    no: 'B-17',
+    en: 'Tracers',
+    cn: '方块环游',
+    group: 'alive',
+    trigger: 'state',
+    do: '不用碰它 —— 五个小方块自己沿着边框一圈圈跑。',
+    how: '把按钮的周长摊成一条线，每个方块按进度在线上取点，走到竖边时自己转 90°；五块依次晚 0.15 秒出发，整段 4.2 秒跑完。',
+    token: 'orbit',
+    ease: 'settle',
+    js: true,
+    label: 'Tracers',
   },
 ];
 

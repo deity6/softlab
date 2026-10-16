@@ -20,6 +20,8 @@ export const DURATIONS = {
   roll: 900,
   /** Ripple：涟漪要有明显扩散过程，比 lazy 慢 ~1.7× */
   tide: 1000,
+  /** Tracers：五个方块绕完一整圈（3.6s）+ 每块错开 0.15s */
+  orbit: 4200,
 } as const;
 
 export type DurationToken = keyof typeof DURATIONS;
