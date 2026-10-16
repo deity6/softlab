@@ -487,16 +487,99 @@
   .heroEyebrow > div {
     font-size: 12px;
   }
+}
 
-  /* 窄屏下按钮不再绝对定位 —— 眉标那一行会折行，绝对居中正好叠在它上面。
-     改成跟着 flex 流排，居中即可。 */
+/* ============ 窄屏 / 矮屏：UI 全部叠进画幅 ============
+ *
+ * 横屏手机上画布的宽度是**按剩余高度反推**的（见 `mona.css`），所以画布以下每多占
+ * 1px，画布就窄 2.6px。原来那条下方栏（虚拟按键 + 眉标 + 动作字）整整吃掉 130px，
+ * 画布只剩屏宽的 42%，上下全是空白。
+ *
+ * 这里把它们全部改成**绝对定位叠在画布上** —— 不参与布局，画布就能吃满整块实验区。
+ * 触控目标本身（56px 的虚拟按键）不动，那是可用性的底线。 */
+@media (max-width: 1011px), (max-height: 700px) {
+  /* 这条栏退化成一层**铺满画布**的透明覆盖层，不再占高度。
+     必须是 `inset: 0`（而不是贴在底部）—— 里面的动作字（PLAY / EXIT / SUBMIT）
+     都是相对它定位的，只留 20px 高的话，`top: 52px` 那类值会直接落到画布外面
+     （踩过：按钮 DOM 在、坐标也对，页面上什么都没有）。 */
+  .actions {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border-top: none;
+    pointer-events: none;
+  }
+
+  /* 眉标在窄屏下会折行、直接盖住画面，而且它只是原站的装饰文案 —— 收掉 */
+  .heroEyebrow {
+    display: none;
+  }
+
+  /* 虚拟按键叠在画布底部 */
+  .touchPad {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0 var(--site-spacing) 10px;
+  }
+
+  /* 按键后面现在是游戏画面（原先它下面只有空白），底色调淡一点让角色透出来。
+     只降透明度、不动 56px 的尺寸 —— 触控目标的大小是可用性底线。 */
+  .touchKey {
+    background: rgb(255 255 255 / 0.6);
+  }
+
+  /* 动作字回到画布内：待机与结算居中（原来在画布下面那条栏里） */
   .actions .pixelPlay,
-  .actions .pixelPlayAgain,
-  .actions .pixelExit,
-  .actions .submitBadge {
-    position: static;
+  .actions .pixelPlayAgain {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    align-self: auto;
+  }
+
+  /* 游戏中退到右上角，让开虚拟按键和角色；`top: 52px` 是给上面那枚 32px 的音效
+     开关让位（它固定在 right/top 各 10px） */
+  .actions .pixelExit {
+    position: absolute;
+    right: 10px;
+    top: 52px;
     transform: none;
-    align-self: center;
+    align-self: auto;
+  }
+
+  /* 看榜入口放到**左上角**（生命值下方），和右上角那串（音效 / EXIT / SUBMIT）
+     分开站，四个东西互不打架。结算时 SUBMIT 会顶掉 EXIT 的位置，也不会撞它。 */
+  .rankFloating {
+    position: absolute;
+    left: 12px;
+    top: 52px;
+    z-index: 4;
+    padding: 4px 2px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: filter 0.28s ease-out;
+  }
+
+  .rankFloating:hover,
+  .rankFloating:focus-visible {
+    filter: brightness(1.1) saturate(1.1);
+    --pixel-gleam-dur: 1.25s;
+    --pixel-gleam-stagger: 11ms;
+  }
+
+  /* 结算时那枚 SUBMIT 也叠进画布（站 EXIT 的位置 —— 结算时 EXIT 本来就不出现） */
+  .actions .submitBadge {
+    position: absolute;
+    right: 10px;
+    top: 52px;
+    transform: none;
+    align-self: auto;
+    animation: none;
   }
 }
 

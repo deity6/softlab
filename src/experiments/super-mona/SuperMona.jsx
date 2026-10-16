@@ -637,9 +637,26 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
         )}
       </div>
 
-      {/* 触屏操作：只在游戏进行中出现。放在画布**下面**而不是压在画布上 ——
-          窄屏下 Wrapper 按 67:26 的比例算出来只有 140px 高，56px 的按键叠进去
-          会吃掉小半屏。方向键在左、跳跃在右，按手游的习惯摆。 */}
+      {/* 窄屏下顶部条不开，看榜入口浮在画布**左上角**（生命值下方），和右上角那串
+          （音效 / EXIT / SUBMIT）分开站 —— 四个东西互不打架。
+
+          ⚠️ 它必须是 wrapper 的**直接子元素**。`.actions` 那一层在窄屏下是绝对定位的
+          覆盖层（贴在画布底部、只有 20px 高），挂在它里面再写 `top: 52px` 会直接
+          落到画布外面去（踩过：按钮 DOM 在、坐标也对，页面上什么都没有）。 */}
+      {board && !showTopBar && (
+        <button
+          type="button"
+          className={styles.rankFloating}
+          onClick={() => openBoard('top')}
+          aria-label={BOARD_TEXT.topTitle}
+        >
+          <PixelWord text={BOARD_TEXT.top} blockPx={blockPx * 0.5} tone="gold" />
+        </button>
+      )}
+
+      {/* 触屏操作：只在游戏进行中出现。**窄屏下叠在画布底部**（半透明白底），
+          不再占据画布以外的高度 —— 画布宽度是按剩余高度反推的，它每占 1px，
+          画布就窄 2.6px。方向键在左、跳跃在右，按手游的习惯摆。 */}
       {!blocked && touchInput && inGame && !state.gameOver && (
         <div className={styles.touchPad}>
           <div className={styles.touchGroup}>
@@ -683,19 +700,6 @@ export function SuperMona({ eyebrow = TEXT.eyebrow.left, portraitHint, topBar = 
           {/* 动作字放在这条栏里，不进画面：居中（PLAY / PLAY AGAIN）或靠右（EXIT）。
               它们绝对是定位的，不占 flex 位置，眉标该多宽还是多宽。 */}
           {actionButton}
-
-          {/* 窄屏下顶部条不开，`TOP` 就搬到这条栏里来（靠右）。
-              看榜入口不该因为屏幕变窄就消失 —— 排行榜本来就是所有人都能看的。 */}
-          {board && !showTopBar && (
-            <button
-              type="button"
-              className={styles.actionsRank}
-              onClick={() => openBoard('top')}
-              aria-label={BOARD_TEXT.topTitle}
-            >
-              <PixelWord text={BOARD_TEXT.top} blockPx={blockPx * 0.5} tone="gold" />
-            </button>
-          )}
 
           {/* 结算时那枚金色的 `SUBMIT`。它站在 `EXIT` 平时的位置上（结算时 EXIT
               本来就不出现），所以栏里不会挤。**点它之前什么都不发** —— 不想上传的
