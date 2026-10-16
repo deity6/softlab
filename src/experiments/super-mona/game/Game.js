@@ -29,9 +29,21 @@ import { intersects } from './utils.js';
  * 完整保留：Lehmer 种子关卡、顶破方块、踩虫弹跳、鸭子跟随+磁吸、
  * Super 时长随速度衰减、死亡后闪烁转场接结算板。
  */
+/** 静音占位：演示模式不出声，也不去动模块级 `sfx`（它有 localStorage 状态） */
+const SILENT_SFX = { playGameEffect() {} };
+
 export class Game {
-  constructor(onStateChange) {
+  /**
+   * @param {(state: object) => void} onStateChange
+   * @param {{ autoPlay?: boolean, silent?: boolean }} [options]
+   *   `autoPlay` 打开演示模式 —— 脚本替玩家操作，见 `autoPilot()`。
+   */
+  constructor(onStateChange, options = {}) {
     this.onStateChange = onStateChange;
+    this.autoPlay = Boolean(options.autoPlay);
+    // 首页封面会把游戏真跑起来，但那一份不该发出声音：`sfx` 是模块级单例，
+    // 改它的 muted 会写进 localStorage，连用户真正在玩的那一份也一起静掉。
+    this.sfx = options.silent ? SILENT_SFX : sfx;
 
     this.group = new THREE.Group();
     this.grid = new Grid(GRID_X);
@@ -81,7 +93,7 @@ export class Game {
       if (e.code === 'Space' && isNewPress && !this.gameOver) {
         const isDoubleJump = this.mona.jumpsRemaining === 1;
         if (this.mona.jump()) {
-          sfx.playGameEffect('jump', this.isSuper, isDoubleJump ? 1.4 : 1, isDoubleJump ? 2 : 1);
+          this.sfx.playGameEffect('jump', this.isSuper, isDoubleJump ? 1.4 : 1, isDoubleJump ? 2 : 1);
         }
       }
     };
@@ -106,9 +118,15 @@ export class Game {
     this.mona.createTrails(this.worldGroup);
     this.mona.update(0, 0);
 
-    window.addEventListener('keydown', this.handleKeyDown);
-    window.addEventListener('keyup', this.handleKeyUp);
-    window.addEventListener('blur', this.handleBlur);
+    // 演示模式不接键盘 —— 它可能同时在首页挂好几份，每份都往 window 上挂一对
+    // keydown/keyup 监听，用户在别处敲空格会挨个触发。
+    if (!this.autoPlay) {
+      window.addEventListener('keydown', this.handleKeyDown);
+      window.addEventListener('keyup', this.handleKeyUp);
+      window.addEventListener('blur', this.handleBlur);
+    } else {
+      this.scrollingStarted = true;
+    }
 
     this.emitState();
   }
@@ -116,6 +134,64 @@ export class Game {
   /** 原 getForcedScrollSpeed：从 2 格/秒线性加速到 20 */
   getForcedScrollSpeed() {
     return Math.min(SCROLL_SPEED_MAX, SCROLL_SPEED_MIN + SCROLL_ACCEL_PER_SEC * this.elapsed);
+  }
+
+  /** 某一格上方最高的可站立面（顶面 y），这列没有方块就返回 null */
+  groundTopAt(gridX) {
+    const occupied = this.platformYsByX.get(Math.floor(gridX));
+    if (!occupied) return null;
+    let top = null;
+    for (const y of occupied) {
+      const surface = y + 1;
+      if (top === null || surface > top) top = surface;
+    }
+    return top;
+  }
+
+  /**
+   * 演示模式的「操作手」。
+   *
+   * 首页那张卡片的封面不画了 —— 手绘一份迟早会跟游戏本体走样（改配色、换方块
+   * 渲染、调手感，画那个都不会跟着动）。这里改成真把游戏跑起来，脚本替玩家按键，
+   * 就是马里奥开机那段自动演示：一路往右，遇台阶和沟就跳，见虫子从上面踩过去。
+   *
+   * 关卡是 Lehmer 种子生成的，所以每一段演示的地形都不一样。
+   *
+   * 只做三件事：
+   *   ① 按住右（不然会被强制滚动甩到屏幕左边缘贴住）
+   *   ② 探碰撞箱正前方那一列 —— 抬高就跳，空掉（沟）也跳
+   *   ③ 前方三格内有虫子也跳（从上方落下去算踩，侧面撞上要掉命）
+   */
+  autoPilot() {
+    const mona = this.mona;
+    if (!mona || this.gameOver) return;
+
+    // 追到关卡前方约 16 格就不再往前冲。封面（见 DemoRunner）的取景框只有 47 格宽
+    // 并且钉在 scrollX 上，她要是贴着可跑范围的最右边，就跑到画外去了。
+    if (mona.x < this.scrollX + 16) this.keys.add('ArrowRight');
+    else this.keys.delete('ArrowRight');
+
+    const footX = mona.collisionX;
+    const footY = mona.y;
+    // 探到碰撞箱前沿再往外一点，正好是撞上之前的那一格
+    const ahead = this.groundTopAt(footX + mona.COLLISION_WIDTH + 0.4);
+
+    let jump = ahead === null || ahead > footY + 0.55;
+
+    if (!jump) {
+      for (const bug of this.bugs) {
+        const dx = bug.x - footX;
+        if (dx > 0.4 && dx < 3.2 && Math.abs(bug.y - footY) < 1.6) {
+          jump = true;
+          break;
+        }
+      }
+    }
+
+    // 只在落地或下落时起跳：上升途中再按会把二段跳浪费掉
+    if (jump && mona.jumpsRemaining > 0 && mona.velocityY <= 0.01 && mona.jump()) {
+      this.sfx.playGameEffect('jump', this.isSuper);
+    }
   }
 
   getDuckyCatchupMultiplier() {
@@ -148,6 +224,8 @@ export class Game {
       this.level.generateSceneUntil(this.scrollX + GRID_X + 80);
       this.cleanupScene();
     }
+
+    if (this.autoPlay) this.autoPilot();
 
     const right = this.keys.has('ArrowRight') || this.keys.has('KeyD');
     const left = this.keys.has('ArrowLeft') || this.keys.has('KeyA');
@@ -203,7 +281,7 @@ export class Game {
       if (index >= 0) {
         const [block] = this.blocks.splice(index, 1);
         this.unregisterPlatformBlock(block);
-        sfx.playGameEffect('breakBlock', this.isSuper);
+        this.sfx.playGameEffect('breakBlock', this.isSuper);
         block.runBreakAnimation();
         // 10% 概率碎块里掉出一个普通拾取物
         if (this.random() < 0.1) {
@@ -238,7 +316,7 @@ export class Game {
     if (this.superEnding && !trailsActive) {
       this.superEnding = false;
       this.mona.setSuper(false);
-      sfx.playGameEffect('megaEnd', true);
+      this.sfx.playGameEffect('megaEnd', true);
     }
 
     this.emitState();
@@ -310,7 +388,7 @@ export class Game {
 
       if (!collected) continue;
 
-      sfx.playGameEffect(pickup.mega ? 'collectMega' : 'collect', this.isSuper);
+      this.sfx.playGameEffect(pickup.mega ? 'collectMega' : 'collect', this.isSuper);
       this.addScore(pickup.mega ? 100 : 50, pickup.x + pickup.width / 2, pickup.y + pickup.height);
       if (pickup.mega) {
         this.superSeconds = 10 * this.getPowerupDurationMultiplier();
@@ -354,7 +432,7 @@ export class Game {
     );
 
     if (!wasDeparting && this.ducky.isDeparting) {
-      sfx.playGameEffect('duckyLeave', this.isSuper);
+      this.sfx.playGameEffect('duckyLeave', this.isSuper);
     }
 
     if (
@@ -362,7 +440,7 @@ export class Game {
       intersects(this.mona.getBounds(), this.ducky.getBounds())
     ) {
       this.ducky.activate(this.getPowerupDurationMultiplier());
-      sfx.playGameEffect('catchDucky', false);
+      this.sfx.playGameEffect('catchDucky', false);
     }
 
     // 鸭子还在等，但已经被卷到屏幕左边就撤掉
@@ -403,7 +481,7 @@ export class Game {
       const stomping = this.mona.velocityY < 0 && this.mona.y > bug.y + BUG_COLLISION_H / 2;
       if (stomping || this.isSuper) {
         this.addScore(25, bug.x + 1, bug.y + BUG_COLLISION_H);
-        sfx.playGameEffect('squashBug', this.isSuper);
+        this.sfx.playGameEffect('squashBug', this.isSuper);
         if (stomping) {
           bug.sprite.squish();
           this.mona.bounce(bug.y + BUG_COLLISION_H, 0.6 * this.mona.JUMP_SPEED);
@@ -416,11 +494,11 @@ export class Game {
       if (this.mona.takeDamage()) {
         this.lives -= 1;
         if (this.lives === 0) {
-          sfx.playGameEffect('gameOver', false);
+          this.sfx.playGameEffect('gameOver', false);
           this.gameOver = true;
           this.startGameOverTransition();
         } else {
-          sfx.playGameEffect('damage', this.isSuper);
+          this.sfx.playGameEffect('damage', this.isSuper);
         }
       }
     }
@@ -467,7 +545,7 @@ export class Game {
     for (const bug of this.bugs) {
       if (!bug.isStandingOn(block)) continue;
       this.addScore(25, bug.x + 1, bug.y + BUG_COLLISION_H);
-      sfx.playGameEffect('squashBug', this.isSuper);
+      this.sfx.playGameEffect('squashBug', this.isSuper);
       bug.knockOut(
         0.45 * this.mona.JUMP_SPEED,
         bug.x + 1 >= block.x + 0.5 ? 1 : -1,

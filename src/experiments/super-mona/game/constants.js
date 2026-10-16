@@ -17,8 +17,37 @@ import contribution3 from '../assets/ContributionIcon_3.png';
 import contribution4 from '../assets/ContributionIcon_4.png';
 import contribution5 from '../assets/ContributionIcon_5.png';
 
-/** 方块 / 拾取物 / 残影调色板（原 `l`） */
+/**
+ * 残影调色板（原 `l`）。
+ * ⚠️ 不要往这里加色。`Mona.js` 的残影数量是 `PALETTE.length`（原站 6 条），
+ *    扩它等于改掉原站行为。拾取物的配色走下面的 `GRADIENT_SETS`。
+ */
 export const PALETTE = ['#5fed83', '#bba00a', '#ae85ff', '#f73678', '#c05200', '#583af7'];
+
+/**
+ * 拾取物的三停渐变色组（原 `l` 只有 6 个单色）。
+ *
+ * 单色块堆成 3×3 / 4×4 会显得平、也没什么层次；每组三个色连起来是一条从浅
+ * 到深的过渡，块面沿纵向取自己那一段，拼起来就是一条完整的渐变。
+ *
+ * 前三组是用户点名的，其余按「亮 → 中 → 深」同一逻辑补齐 —— 关键不是色相
+ * 多，而是每一组内部要拉开明度，块才有体积感。
+ */
+export const GRADIENT_SETS = [
+  // —— 用户指定
+  ['#FFCEE3', '#678EC9', '#262277'], // 樱粉 → 中蓝 → 夜蓝
+  ['#F9D2E4', '#67C9B5', '#007E79'], // 浅粉 → 薄荷 → 深青
+  ['#FFE28D', '#21A7CF', '#D4FEFA'], // 蜜黄 → 湖蓝 → 冰青
+  // —— 补齐
+  ['#B8C0FF', '#7B2CBF', '#240046'], // 薰衣草 → 紫 → 近黑紫
+  ['#FFD6A5', '#FF6B6B', '#6A040F'], // 杏 → 珊瑚 → 酒红
+  ['#A0F0D0', '#118AB2', '#073B4C'], // 薄荷 → 孔雀蓝 → 深墨蓝
+  ['#FDE68A', '#F59E0B', '#7C2D12'], // 浅金 → 琥珀 → 焦棕
+  ['#D8B4FE', '#A855F7', '#4C1D95'], // 浅紫 → 亮紫 → 深紫
+  ['#9AE6B4', '#38A169', '#1C4532'], // 嫩绿 → 翠绿 → 深林绿
+  ['#BAE6FD', '#0EA5E9', '#0C4A6E'], // 天青 → 亮蓝 → 深海蓝
+  ['#FFB3C7', '#E5383B', '#6A040F'], // 粉 → 正红 → 深红
+];
 
 /** 转场彩条颜色（原 `eK`） */
 export const TRANSITION_COLORS = [0xbba00a, 6286723, 5782263, 0xc05200, 0xf73678, 0xae85ff];

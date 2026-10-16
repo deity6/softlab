@@ -3,6 +3,7 @@ import { navigate } from '../lib/useHashRoute';
 import { findSection } from '../lib/sections';
 import { useLang } from '../lib/i18n';
 import ThumbCanvas from '../home/ThumbCanvas';
+import MonaThumb from '../home/MonaThumb';
 import { useSpotlightDelegated } from '../lib/useReveal';
 
 /**
@@ -50,7 +51,8 @@ export default function ExperimentsPanel() {
               </div>
 
               <div className="ex-card__thumb">
-                <ThumbCanvas kind={exp.thumb} />
+                {/* Mona 那张跑的是真游戏，不是画的 —— 其余四张仍是 2D 循环 */}
+                {exp.thumb === 'mona' ? <MonaThumb /> : <ThumbCanvas kind={exp.thumb} />}
                 {wip && <span className="ex-card__flag">{t('exp.wipFlag')}</span>}
               </div>
 

@@ -82,10 +82,15 @@
   justify-content: center;
 }
 
-/* 原站里 Wrapper 直接铺满内容区；实验室给它一个上限，免得 94 格网格在超宽屏
-   上被拉成一条砖带。两块（画布 + 眉标按钮栏）一起居中。 */
+/* 原站 hero 是满幅铺满的（实测约 1524px），这里的上限就对齐它 —— 两块
+   （画布 + 眉标按钮栏）一起居中。
+
+   第三个 `min()` 项是按**可用高度**反推宽度：实验页独占视口
+   （`.shell:has(.exp-page)` 带 `overflow: clip`），画布一旦高过 `.lab` 就会被
+   直接裁掉，所以宽度得让高度说了算。94/26 就是画布比例，96px 留给下面那条
+   眉标按钮栏。`cqh` 读的是 `.lab`（`container-type: size`）的高度。 */
 .lab--mona > * {
-  width: min(100%, 1180px);
+  width: min(100%, 1524px, calc((100cqh - 96px) * 94 / 26));
   margin-inline: auto;
 }
 
@@ -111,11 +116,87 @@
   height: 100%;
 }
 
+/* --------------------------------------------------------------------------
+ * 竖屏提示
+ * ------------------------------------------------------------------------ */
+
+.mona-rotate {
+  display: none;
+}
+
+@keyframes mona-tilt {
+  0%,
+  18% {
+    transform: rotate(0deg);
+  }
+  46%,
+  72% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* 只在「竖屏 + 触屏」出现。指针类型也一起判：桌面窗口拖窄了不该看到它。 */
+@media (orientation: portrait) and (pointer: coarse) {
+  .mona-rotate {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 24px;
+    /* 不透明：下面那层是浅色画布 + 一个 Play 按钮，半透明会透出重影 */
+    background: #e9edec;
+    color: #14161a;
+    text-align: center;
+  }
+
+  .mona-rotate__phone {
+    position: relative;
+    width: 32px;
+    height: 54px;
+    border: 2px solid currentColor;
+    border-radius: 7px;
+    animation: mona-tilt 2.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+  }
+
+  /* 底部那道短横，转起来才看得出是台手机 */
+  .mona-rotate__phone::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 4px;
+    width: 11px;
+    height: 2px;
+    margin-left: -6px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+
+  .mona-rotate__text {
+    font-family: var(--brand-fontStack-monospace);
+    font-size: 13px;
+    letter-spacing: 0.01em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mona-rotate__phone {
+    animation: none;
+    transform: rotate(-90deg);
+  }
+}
+
 /* 项目联动：指向独立小游戏项目的那条链接。
    它落在浅色域里，所以蓝色用 GitHub 的链接蓝（#0969da），不是本站的强调绿 ——
    这里要的是「可以点出去」的信号，和实验内部的操作色区分开。 */
 .mona-more {
-  width: min(100%, 1180px);
+  width: min(100%, 1524px);
   margin: 0 auto;
   padding: 15px var(--site-spacing) calc(var(--site-spacing) + 6px);
   display: flex;

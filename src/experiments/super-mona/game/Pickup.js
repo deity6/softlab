@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ASSETS, CELL, PALETTE } from './constants.js';
+import { createGradientQuad, randomGradientSet } from './Gradient.js';
 import { placeGroup } from './utils.js';
 
 /** 已加载的 ContributionIcon 纹理（原 `eH`） */
@@ -12,12 +13,15 @@ let iconsReady = false; // 原 `eD`
 /** 原 `eF` */
 const randomColor = () => new THREE.Color(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
 
-/** 原 `w` */
-const makeQuad = (w, h, color) =>
-  new THREE.Mesh(
-    new THREE.PlaneGeometry(w * CELL, h * CELL),
-    new THREE.MeshBasicMaterial({ color }),
-  );
+/**
+ * 原 `w` —— 一块面片。
+ *
+ * `set` 是三色配色组，`t0` / `t1` 是这一块在整条渐变里占的纵向区间
+ * （0 = 最浅、1 = 最深）。一个拾取物里所有块拼起来才是一条完整渐变，
+ * 所以这里不再是「一块一个颜色」。
+ */
+const makeQuad = (w, h, set, t0, t1) =>
+  createGradientQuad(new THREE.PlaneGeometry(w * CELL, h * CELL), set, t0, t1);
 
 /**
  * 原代码在贴图加载后扫描 alpha>10 的像素边界，
@@ -87,18 +91,20 @@ export function createPickup(x, y, size, isMega) {
   const group = new THREE.Group();
   const parts = [];
 
+  /** 普通拾取物收敛到的目标色（= 它那组配色的中间色）；MEGA 用不到 */
+  let unified = null;
+
   if (isMega) {
     const cell = size / 4;
-    const pool = [...PALETTE];
-    const quadrantColors = Array.from({ length: 4 }, () => {
-      const idx = Math.floor(Math.random() * pool.length);
-      return pool.splice(idx, 1)[0];
-    });
+    // 四个象限各给一条独立渐变，和原站「四象限各自一个色」的意图一致
+    const quadrantSets = Array.from({ length: 4 }, randomGradientSet);
     for (let row = 0; row < 4; row += 1) {
       for (let col = 0; col < 4; col += 1) {
         const quadrant = 2 * Math.floor(row / 2) + Math.floor(col / 2);
-        const quadrantHex = quadrantColors[quadrant];
-        const mesh = makeQuad(cell, cell, quadrantHex);
+        const set = quadrantSets[quadrant];
+        // 象限内 2×2，上下两行各占这条渐变的一半
+        const sub = row % 2;
+        const mesh = makeQuad(cell, cell, set, sub / 2, (sub + 1) / 2);
         const px = (-size / 2 + col * cell + cell / 2) * CELL;
         const py = (-size / 2 + row * cell + cell / 2) * CELL;
         mesh.position.set(px, py, 0);
@@ -106,11 +112,11 @@ export function createPickup(x, y, size, isMega) {
         const mult = 2 + Math.floor(3 * Math.random());
         parts.push({
           mesh,
-          materialColor: mesh.material.color,
+          materialColor: mesh.userData.gradient,
           individualColor: randomColor(),
           // MEGA 的出场动画最终收敛到「该块自己的象限色」，
           // 而不是整个拾取物的统一色 —— 这样它稳定后仍是 4 象限彩色。
-          targetColor: new THREE.Color(quadrantHex),
+          targetColor: new THREE.Color(set[1]),
           targetPosition: { x: px, y: py },
           startOffset: {
             x: (col - 1.5) * cell * CELL * mult,
@@ -121,10 +127,12 @@ export function createPickup(x, y, size, isMega) {
     }
   } else {
     const cell = size / 3;
+    // 全部 9 块共用同一组配色：一行占整条渐变的三分之一，
+    // 拼起来才是一条从浅到深的完整过渡（原站是 9 块同一个纯色）。
+    const set = randomGradientSet();
     for (let row = 0; row < 3; row += 1) {
       for (let col = 0; col < 3; col += 1) {
-        const color = randomColor();
-        const mesh = makeQuad(cell, cell, color);
+        const mesh = makeQuad(cell, cell, set, row / 3, (row + 1) / 3);
         const px = (-size / 2 + col * cell + cell / 2) * CELL;
         const py = (-size / 2 + row * cell + cell / 2) * CELL;
         mesh.position.set(px, py, 0);
@@ -134,8 +142,8 @@ export function createPickup(x, y, size, isMega) {
         const jitterY = (Math.random() - 0.5) * 2 * CELL;
         parts.push({
           mesh,
-          materialColor: mesh.material.color,
-          individualColor: color,
+          materialColor: mesh.userData.gradient,
+          individualColor: randomColor(),
           targetPosition: { x: px, y: py },
           startOffset: {
             x: (col - 1) * cell * CELL * mult + jitterX,
@@ -144,6 +152,7 @@ export function createPickup(x, y, size, isMega) {
         });
       }
     }
+    unified = new THREE.Color(set[1]).getHSL({ h: 0, s: 0, l: 0 });
   }
 
   // 普通拾取物的中心图标层（原代码里只有非 mega 分支有）
@@ -167,8 +176,6 @@ export function createPickup(x, y, size, isMega) {
     if (iconsReady) applyIcon();
     else pending.push(applyIcon);
   }
-
-  const unified = randomColor().getHSL({ h: 0, s: 0, l: 0 });
 
   placeGroup(group, x, y, size, size);
 

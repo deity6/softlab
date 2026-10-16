@@ -43,6 +43,14 @@ export default function SuperMonaLab() {
 
       <div className="lab lab--mona">
         <SuperMona />
+
+        {/* 竖屏 + 触屏时才盖上这一层：画布是 67:26 的扁比例，竖屏里只剩一条
+            窄缝，根本没法玩。横过来自动消失 —— 纯 CSS 媒体查询，不需要去听
+            orientationchange。 */}
+        <div className="mona-rotate" aria-hidden="true">
+          <span className="mona-rotate__phone" />
+          <span className="mona-rotate__text">{t('mona.rotate')}</span>
+        </div>
       </div>
 
       {/* 项目联动：这里只是「能玩」的一小块，完整的那个项目单开了一站 ——

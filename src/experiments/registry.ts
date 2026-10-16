@@ -36,7 +36,14 @@ export interface Experiment {
   wipNote?: { zh: string; en: string };
   /** what the visitor will be able to do once it opens */
   wipMissing?: { zh: string[]; en: string[] };
-  /** cheap animated thumbnail drawn on the index card */
+  /**
+   * Cheap animated thumbnail drawn on the index card.
+   *
+   * `'mona'` is the odd one out: it is not drawn by `ThumbCanvas` but by
+   * `MonaThumb`, which boots the real game on the card. Kept in this union
+   * because from the registry's point of view it is still "which cover do we
+   * want", and the card decides how to honour it.
+   */
   thumb: 'jelly' | 'field' | 'cat' | 'train' | 'mona';
   Component: ExperimentComponent;
 }

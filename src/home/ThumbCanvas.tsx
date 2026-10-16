@@ -1,7 +1,12 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { onThemeChange, getResolved } from '../lib/theme';
 
-type Kind = 'jelly' | 'field' | 'cat' | 'train' | 'mona';
+/**
+ * The card covers drawn on a 2D canvas. Mona is deliberately absent: its card
+ * runs the real game instead (see `MonaThumb`), because a hand-painted stand-in
+ * goes stale the moment the palette or the block rendering changes.
+ */
+type Kind = 'jelly' | 'field' | 'cat' | 'train';
 
 /**
  * Cheap 2D-canvas loops for the index cards. These do not need WebGL — a
@@ -809,135 +814,6 @@ export default function ThumbCanvas({ kind }: { kind: Kind }) {
       ctx.fillRect(0, 0, w, h);
     };
 
-    /* -------------------------------------------------------------- mona */
-    /**
-     * Super Mona。那个实验的主角本来就是「一格一格的方块」，所以缩略图也用
-     * 同一套语言画：一层点阵打底（那 94 × 26 的方阵），底下两排实心方块当往左
-     * 滚的路面，中间一只上下起伏的像素猫 —— 原站的 Mona 就是黑描边 + 浅填充的
-     * 像素角色，不放图标、不加渐变，全靠格子说话。
-     */
-    /* -------------------------------------------------------------- mona */
-    /**
-     * Super Mona 的封面。
-     *
-     * 不是「一个角色原地上下浮动」的示意图，而是一段**真的在跑的关卡**：地形是
-     * 写死的台阶图案、虫子和拾取物各有固定位置，角色沿地形一路往前跑、相机跟着走。
-     *
-     * 循环的做法：图案总长 60 格，而且**首尾都落在基准地面上**，于是相机位置取
-     * `x % 60` 就能无缝接回去 —— 接缝处地形连着、角色在地面上的位置也连着，
-     * 看不出是从哪里接回来的。所有相位都从同一个 `t` 推出来，不存跨帧状态，
-     * 所以也不会有「某一帧忽然跳一下」。
-     *
-     * 封面只有 118px 高，所以不画 HUD、不画分数、不做特效，只留格子和角色。
-     */
-    const drawMona = (t: number) => {
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      // 一格的边长：横向排 22 格，和游戏里那 94 格的方阵是同一套语言
-      const cell = Math.max(4, Math.round(w / 22));
-      const GROUND = h - cell * 2; // 基准地面（平地那一层）
-      const LOOP = 60; // 关卡循环长度（格）
-      const SPEED = 6; // 前进速度（格/秒）
-      const cam = (t * SPEED) % LOOP; // 相机所在的格
-
-      // 底色与点阵（那 94 × 26 方阵的缩影）
-      ctx.fillStyle = '#e9edec';
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.055)';
-      for (let y = 0; y < h; y += cell) {
-        for (let x = 0; x < w; x += cell) {
-          ctx.fillRect(x + 1, y + 1, cell - 2, cell - 2);
-        }
-      }
-
-      /**
-       * 地形高度（单位：格；0 = 基准地面）。写死的台阶图案，60 格一循环。
-       * 首尾都是 0 —— 这是「循环看不出来」的关键：图案最后一段和平地接上，
-       * 相机会在同一种地形上回到起点。
-       */
-      const terrain = (c: number) => {
-        const i = ((c % LOOP) + LOOP) % LOOP;
-        if (i < 9) return 0;
-        if (i < 17) return 1;
-        if (i < 21) return 0;
-        if (i < 29) return 2;
-        if (i < 33) return 1;
-        if (i < 43) return 0;
-        if (i < 49) return 3;
-        if (i < 53) return 1;
-        return 0;
-      };
-
-      const BUGS = [6, 24, 39, 46];
-      const PICKUPS = [13, 31, 51];
-      const cols = Math.ceil(w / cell) + 2;
-
-      /* ---- 地形：每格两层厚的实心方块，跟着台阶高度走 ---- */
-      for (let i = -1; i < cols; i++) {
-        const c = Math.floor(cam) + i;
-        const top = GROUND - terrain(c) * cell;
-        const x = Math.round((c - cam) * cell);
-        ctx.fillStyle = '#4a4f4c';
-        ctx.fillRect(x, Math.round(top), cell - 1, cell - 1);
-        ctx.fillStyle = '#3b403d';
-        ctx.fillRect(x, Math.round(top + cell), cell - 1, cell - 1);
-      }
-
-      /* ---- 拾取物：悬在阶梯上方，轻轻浮动 ---- */
-      ctx.fillStyle = '#5fed83';
-      for (const p of PICKUPS) {
-        const rel = p - cam;
-        if (rel < -2 || rel > cols + 1) continue;
-        const gy = GROUND - terrain(p) * cell;
-        const bob = Math.sin(t * 3.2 + p * 0.7) * cell * 0.22;
-        ctx.fillRect(Math.round(rel * cell), Math.round(gy - cell * 2.3 + bob), cell - 1, cell - 1);
-      }
-
-      /* ---- 虫子：贴着地面 ---- */
-      for (const b of BUGS) {
-        const rel = b - cam;
-        if (rel < -2 || rel > cols + 1) continue;
-        const gy = GROUND - terrain(b) * cell;
-        const x = Math.round(rel * cell);
-        ctx.fillStyle = '#c05200';
-        ctx.fillRect(x, Math.round(gy - cell * 0.8), cell - 1, Math.round(cell * 0.8));
-        ctx.fillStyle = '#14161a';
-        ctx.fillRect(x + 1, Math.round(gy - cell * 0.6), Math.max(1, cell - 4), 1);
-      }
-
-      /* ---- 角色：钉在画面 32% 处，y 跟着地形走 ---- */
-      // 爬台阶和落台阶用同一套地形函数，靠 `hop`（跑动起伏）把它读成「在跑」
-      // 而不是「在滑」—— 缩略图这个尺寸，节奏比物理准确更重要。
-      const charCol = cam + (w / cell) * 0.32;
-      const gy = GROUND - terrain(charCol) * cell;
-      const hop = Math.abs(Math.sin(t * 9)) * cell * 0.28;
-      const u = Math.max(2, Math.round(cell / 2.4)); // 像素猫上一个像素的边长
-      const cat = [
-        '.##..##.',
-        '########',
-        '#.####.#',
-        '#.#..#.#',
-        '#.####.#',
-        '#..##..#',
-        '.######.',
-        '.#....#.',
-      ];
-      const ox = Math.round(w * 0.32 - (cat[0].length * u) / 2);
-      const oy = Math.round(gy - cat.length * u - hop);
-      ctx.fillStyle = '#14161a';
-      for (let r = 0; r < cat.length; r++) {
-        for (let c = 0; c < cat[r].length; c++) {
-          if (cat[r][c] === '#') ctx.fillRect(ox + c * u, oy + r * u, u, u);
-        }
-      }
-      // 眼睛点亮成底色，猫才有神
-      ctx.fillStyle = '#e9edec';
-      ctx.fillRect(ox + 2 * u, oy + 3 * u, u, u);
-      ctx.fillRect(ox + 5 * u, oy + 3 * u, u, u);
-    };
-
     let last = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
@@ -948,7 +824,6 @@ export default function ThumbCanvas({ kind }: { kind: Kind }) {
       if (kind === 'jelly') drawJelly(t);
       else if (kind === 'field') drawField(t);
       else if (kind === 'train') drawTrain(t);
-      else if (kind === 'mona') drawMona(t);
       else drawCat(t);
     };
     raf = requestAnimationFrame(loop);

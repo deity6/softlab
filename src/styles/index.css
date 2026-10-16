@@ -718,6 +718,13 @@ canvas {
   height: 100%;
 }
 
+/* The Mona card's cover is the real game running (see `MonaThumb`), so it fills
+   the card like any other thumbnail. No `aspect-ratio` is pinned here on
+   purpose: the demo camera fixes the number of *rows* on screen and lets the
+   width follow whatever the card gives it (see `DemoRunner.applyView`), which
+   is what keeps the picture unstretched and the character the same size at
+   every breakpoint. */
+
 .ex-card__title {
   font-size: 25px;
   font-weight: 800;
