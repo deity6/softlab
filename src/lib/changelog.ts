@@ -21,9 +21,25 @@ export interface ChangeEntry {
 }
 
 /** Bump the last number here on every change. */
-export const VERSION = 'V0.0.47';
+export const VERSION = 'V0.0.48';
 
 export const ENTRIES: ChangeEntry[] = [
+  {
+    version: 'V0.0.48',
+    date: '2026-10-18',
+    title: '修顶栏横向溢出：手机右侧空出一条空白列',
+    items: [
+      '现象：手机上整页可以横着拖，拖过去右侧露出一条空白列（用户截图 390 宽下约 39px，占屏幕 10%）；开「桌面版网站」也一样，只是窄一点',
+      '⚠️ 根因不在内容区，在顶栏：`.site-head__row` 是 nowrap 的 flex，brand(86) + 五个栏目(166) + 主题三态(62) + 中/EN(43) + 间距(36) = 393px，而 390 视口只有 358px 可用。四个块都是 `flex: none`，不会收缩，最后那个 `.lang-switch` 直接被推出视口右侧 39px —— `document.scrollWidth` 于是变成 429，整页可横滑',
+      '实测溢出量：320 宽溢 109 / 360 溢 69 / 375 溢 54 / 390 溢 39 / 414 溢 15 / 430 起为 0；**768 竖屏平板反而溢 69**，因为 721–860 用的是「完整英文标签 + 中文副标」，比手机端的短标签更宽',
+      '修法：≤860 顶栏改两行 —— 第一行 brand + 设置，第二行五个栏目独占一行（`flex: 1 0 100%` 强制换行 + `order: 3` 排到设置之后）。320 宽两行都还有余量，不再靠压字号硬撑',
+      '860 这个断点不是拍的：834 溢 5、861 起为 0，取中间且与既有的 `.hero__lower` / `.btn-detail` 断点重合',
+      '⚠️ 连带两处必须一起改：① `--head-h` 56 → 82（实验页抽屉的高度是从 `--chrome` 派生的）；② 球体那条小横杠的默认落点是「brand 底边 + 1」，两行后 brand 底边（30）落在两行之间，横杠会压住 EXP —— 改成取「brand 与 `.site-nav` 的较下者」，单行布局算出来仍是 42，桌面一个像素没动',
+      '⚠️ 兜底改用 `body { overflow-x: clip }`。`hidden` 是「可以滚但不显示滚动条」，触摸仍然能把页面横向拖出去 —— 这正是空白列的成因；`clip` 才是真的不让画到视口外。**不能放 `html` 上**：实测会把 viewport 变成裁剪上下文，`position: sticky` 的顶栏直接失效（滚动 700px 后 top = -700）',
+      '⚠️ 顺手修了 dev 服务器整站白屏：`theme.ts` 里 `apply(current)` 在 `export const THEME_EVENT` 之前执行，esbuild 保持原语句顺序 → `Cannot access THEME_EVENT before initialization`。生产构建恰好把常量排在前面所以看不出来',
+      '新增 `node softlab/_audit_overflow.mjs`：16 个视口 × 6 条路由，断言 `scrollWidth == clientWidth`，失败时打印把页面撑宽的元素。改完 CSS 跑一遍，比肉眼看截图靠谱',
+    ],
+  },
   {
     version: 'V0.0.47',
     date: '2026-10-17',

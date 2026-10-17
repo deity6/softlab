@@ -93,7 +93,14 @@ body {
   /* No `-webkit-font-smoothing: antialiased` here on purpose: on Windows it
      switches text off subpixel rendering, and 9–11px mono labels go visibly
      grey and blurry. Keep the default (ClearType) so small type stays crisp. */
-  overflow-x: hidden;
+  /* `clip`, not `hidden`: hidden is still a scroll container — it hides the
+     scrollbar but a touch swipe can still pan the page sideways (that is
+     exactly how the right-hand blank column showed up on a phone: the header
+     overflowed 39px and the page could be dragged). `clip` refuses to paint or
+     pan past the edge. It sits on <body>, not <html>: putting it on <html>
+     turns the viewport into a clip context and `position: sticky` on the
+     header stops sticking (measured: header scrolled away at top: -700px). */
+  overflow-x: clip;
 }
 
 ::selection {
@@ -177,6 +184,71 @@ canvas {
   align-items: center;
   gap: 18px;
   height: 56px;
+  /* Belt and braces. The four blocks in this row are all `flex: none` — brand,
+     five nav labels, three theme glyphs, the language switch — so when the sum
+     exceeds the row they do not shrink, they spill past the right edge and
+     take `document.scrollWidth` with them. That turns the whole site into a
+     horizontally scrollable document: on a phone you can drag the page 39px to
+     the left and the right edge shows an empty column. `min-width: 0` lets the
+     row report its true size instead of inflating the page; the real fix for
+     the narrow case is the two-row layout further down. */
+  min-width: 0;
+}
+
+/* ---------- header on narrow screens ----------
+   One row cannot hold this bar. At a 390px viewport the row has 358px of room
+   and needs 393 (brand 86 + nav 166 + theme 62 + lang 43 + three 12px gaps);
+   at 320px it needs 109px more than it has. No amount of font shrinking closes
+   that — measured, not guessed — so the bar becomes two rows:
+
+     [ Soft Lab . ]                        [ theme ] [ 中/EN ]
+     [ EXP  BTN  DEST  GROW  LOG ]
+
+   Brand and settings keep the first row, the section labels get a full-width
+   second row. Nothing is dropped, nothing scrolls, and at 320px both rows
+   still have slack. `--head-h` follows the new height because the experiment
+   drawer derives its own height from `--chrome`.
+
+   Landscape phones (844×390) also land here: two rows cost 10px of canvas
+   height, which the canvas absorbs by ratio, and keeping one layout for every
+   narrow screen is worth more than those 10px.
+
+   860 is where the one-row bar stops fitting: measured overflow was 69px at
+   768, 5px at 834, and 0 from ~880 up. 860 splits the difference with slack on
+   both sides. */
+@media (max-width: 860px) {
+  .site-head__row {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    padding: 8px 0 5px;
+    row-gap: 2px;
+    column-gap: 10px;
+  }
+
+  /* `flex: 1 0 100%` is what forces the break: the nav always claims a line of
+     its own, and `order: 3` moves it after the settings cluster so the first
+     line reads brand → settings. */
+  .site-nav {
+    order: 3;
+    flex: 1 0 100%;
+    margin-left: 0;
+    padding-top: 0;
+  }
+
+  /* Pushes the settings cluster to the right edge of the first row. */
+  .brand {
+    margin-right: auto;
+  }
+
+  .theme-switch,
+  .lang-switch {
+    margin-left: 0;
+  }
+
+  .lang-switch {
+    margin-left: 4px;
+  }
 }
 
 .brand {
@@ -3654,6 +3726,18 @@ input[type="range"]::-moz-range-thumb {
 
   /* 底部按钮条的高度，抽屉要给它让位 */
   --dock-h: 46px;
+}
+
+/* The bar is two rows below 900px (see the header section), so the space it
+   occupies is no longer 56px. Measured 80px at 390×844; 82 gives a hair of
+   slack for longer labels. Everything that derives from `--chrome` — the
+   experiment drawer above all — follows automatically. This override has to
+   sit after the `:root` block it shadows: same specificity, so source order
+   decides. */
+@media (max-width: 860px) {
+  :root {
+    --head-h: 82px;
+  }
 }
 
 /* ---------- 舞台：把「上方占用」和「下方控件」都从布局里扣掉 ---------- */

@@ -526,6 +526,19 @@
   transition-delay: 0ms;
 }
 
+/* 窄屏顶栏是两行（≤900px，见 index.css 的 header 段），品牌与栏目占满整块
+   页头，42px 那条缝不存在了 —— 横杠会正好停在两行之间、压住 EXP。
+   落点改为「.hero 上沿 - 横杠 14 - 间距 1」：81 - 15 = 66。
+   真正的 left/top 由 JS 写内联样式（见 HeroOrb.tsx 的 defaultBarPos），
+   这里只是首帧兜底，算式必须和它一致。`.orb-tuner` 同步下移，
+   否则菜单会从横杠上方冒出来。 */
+@media (max-width: 860px) {
+  .orb-dock,
+  .orb-tuner {
+    top: 66px;
+  }
+}
+
 .orb-group {
   display: grid;
   gap: 5px;

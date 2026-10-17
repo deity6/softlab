@@ -45,6 +45,32 @@ function resolve(t: Theme): Resolved {
   return systemDark?.matches ? 'dark' : 'light';
 }
 
+/**
+ * A DOM event for things CSS cannot reach — chiefly the WebGL / three.js
+ * scenes, which paint the page background from a shader and have to be told
+ * when the effective theme changed.
+ *
+ * A `CustomEvent` rather than a React subscription on purpose: those canvases
+ * live outside React's tree (one is a raw WebGL loop, one is an engine
+ * handle) and re-rendering the app to repaint a canvas would be absurd.
+ * Fired for *any* change including the OS flipping in system mode.
+ *
+ * Declared *above* `apply()` and above the module-level `apply(current)` call
+ * on purpose. `const` sits in the temporal dead zone until its own line runs,
+ * and `apply()` dispatches with this name — in the dev server (esbuild keeps
+ * the original statement order) calling `apply(current)` before this line
+ * threw `Cannot access 'THEME_EVENT' before initialization` and the whole app
+ * failed to mount. Production happened to bundle it in a safer order, which
+ * made it a bug only the dev server could see.
+ */
+export const THEME_EVENT = 'softlab:theme';
+
+export function onThemeChange(fn: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(THEME_EVENT, fn);
+  return () => window.removeEventListener(THEME_EVENT, fn);
+}
+
 function apply(t: Theme): void {
   if (typeof document === 'undefined') return;
   const r = resolve(t);
@@ -77,24 +103,6 @@ function apply(t: Theme): void {
 }
 
 apply(current);
-
-/**
- * A DOM event for things CSS cannot reach — chiefly the WebGL / three.js
- * scenes, which paint the page background from a shader and have to be told
- * when the effective theme changed.
- *
- * A `CustomEvent` rather than a React subscription on purpose: those canvases
- * live outside React's tree (one is a raw WebGL loop, one is an engine
- * handle) and re-rendering the app to repaint a canvas would be absurd.
- * Fired for *any* change including the OS flipping in system mode.
- */
-export const THEME_EVENT = 'softlab:theme';
-
-export function onThemeChange(fn: () => void): () => void {
-  if (typeof window === 'undefined') return () => {};
-  window.addEventListener(THEME_EVENT, fn);
-  return () => window.removeEventListener(THEME_EVENT, fn);
-}
 
 export function getTheme(): Theme {
   return current;

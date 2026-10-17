@@ -641,16 +641,24 @@ function defaultBarPos(): { left: number; top: number } {
   // padding 撑到了 57px，正好等于 `.hero` 的上沿，拿它当参照必然越界。
   const brand = document.querySelector('.brand');
   const head = document.querySelector('.site-head');
+  // ⚠️ 窄屏（≤900px）顶栏是两行：第一行标志、第二行栏目。这时".brand 下方"是
+  //    `.site-nav`，不是空缝 —— 只按标志底边算，横杠会落在两行之间、压住栏目
+  //    （实测 top=31，正好在 EXP 上方）。取标志与栏目的**较下者**作锚点，单行
+  //    布局下栏目底边（≈46）也在标志底边（41）之下几像素，`min()` 之后仍是
+  //    原来的 42，桌面上一个像素都不动。
+  const nav = document.querySelector('.site-nav');
   const brandBottom = brand
     ? brand.getBoundingClientRect().bottom
     : head
       ? head.getBoundingClientRect().bottom
       : 41;
+  const navBottom = nav ? nav.getBoundingClientRect().bottom : 0;
+  const anchorBottom = Math.max(brandBottom, navBottom);
   const heroTop = hero ? hero.getBoundingClientRect().top : 57;
 
   // 桌面 1440 / 窄屏 742 / 移动 390 / 平板 820 实测：标志底 41、框沿 57，
   // 中间那条 16px 的缝正好放得下 14px 的横杠 → 两个约束都落在 top=42。
-  const belowBrand = brandBottom + BAR_GAP_ABOVE; // 期望：在小标题下方
+  const belowBrand = anchorBottom + BAR_GAP_ABOVE; // 期望：在小标题与栏目下方
   const aboveHero = heroTop - BAR_H - BAR_GAP_BELOW; // 硬约束：整条留在交互框外
   // ⚠️ 极端窄的视口下标志万一折行变高，这两个值会打架。此时**取 aboveHero**：
   //    「底部在交互框外面」是用户明确的硬要求，优先保它。
