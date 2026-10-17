@@ -52,6 +52,14 @@ export function ScoreBoard({ run, blockPx, onClose, initialTab = 'submit' }) {
   const [phase, setPhase] = useState('idle');
   const [errorKey, setErrorKey] = useState(null);
   const [board, setBoard] = useState(null);
+  /**
+   * 榜单取数状态：`loading` / `ready` / `down`。
+   *
+   * 光看 `board === null` 不够 ——「还没开始拉」「拉到了但一条都没有」和「压根没
+   * 拉到」对玩家是三件完全不同的事。混成同一个空列表，后端一掉线就会被读成
+   * 「我的成绩被清空了」。下面 `top` 面板据此分三路渲染。
+   */
+  const [boardState, setBoardState] = useState('loading');
   const [rank, setRank] = useState(null);
   const [verifiedScore, setVerifiedScore] = useState(null);
 
@@ -62,12 +70,17 @@ export function ScoreBoard({ run, blockPx, onClose, initialTab = 'submit' }) {
   const canSubmit = hasRun && nameOk && phase !== 'sending';
 
   const loadBoard = useCallback(async () => {
+    setBoardState('loading');
     try {
       const res = await fetch(BOARD.endpoint, { headers: { accept: 'application/json' } });
+      /* 接口不在时 Pages 的 SPA fallback 会把 index.html 顶上来（200 + text/html），
+         `res.json()` 在这一行抛 —— 和断网、和 `ok:false` 走同一个出口，都对。 */
       const data = await res.json();
-      if (data?.ok) setBoard(data.board ?? []);
+      if (!data?.ok) throw new Error(data?.error ?? 'bad-response');
+      setBoard(data.board ?? []);
+      setBoardState('ready');
     } catch {
-      /* 拉不到就先空着，不打扰玩家 */
+      setBoardState('down');
     }
   }, []);
 
@@ -222,7 +235,16 @@ export function ScoreBoard({ run, blockPx, onClose, initialTab = 'submit' }) {
 
         {tab === 'top' && (
           <div className={styles.body}>
-            {boardRows.length === 0 ? (
+            {boardState === 'down' ? (
+              <div className={styles.down}>
+                <p className={styles.error}>{BOARD_TEXT.boardDown}</p>
+                <button type="button" className={styles.retry} onClick={loadBoard}>
+                  {BOARD_TEXT.retry}
+                </button>
+              </div>
+            ) : boardState === 'loading' ? (
+              <p className={styles.empty}>{BOARD_TEXT.loading}</p>
+            ) : boardRows.length === 0 ? (
               <p className={styles.empty}>{BOARD_TEXT.empty}</p>
             ) : (
               <ol className={styles.list}>

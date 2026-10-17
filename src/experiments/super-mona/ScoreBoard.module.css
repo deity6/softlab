@@ -240,6 +240,31 @@
   text-align: center;
 }
 
+/* 榜单拉不到时的容器。以前这种情况直接落到 `.empty`（NO SCORES YET），
+   和后端掉线长得一模一样，玩家会以为成绩被清空了。 */
+.down {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.retry {
+  align-self: center;
+  padding: 8px 22px;
+  border: 1px solid #34405a;
+  background: #131a29;
+  color: #93a2ba;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+
+.retry:hover {
+  border-color: #55617d;
+  color: #c3cee0;
+}
+
 .list {
   display: flex;
   flex-direction: column;

@@ -21,9 +21,23 @@ export interface ChangeEntry {
 }
 
 /** Bump the last number here on every change. */
-export const VERSION = 'V0.0.48';
+export const VERSION = 'V0.0.49';
 
 export const ENTRIES: ChangeEntry[] = [
+  {
+    version: 'V0.0.49',
+    date: '2026-10-18',
+    title: '修「一更新就不见数据」：部署漏带 Functions，顺带让空榜开口说话',
+    items: [
+      '现象：TOP 榜变空，看着像更新把成绩清空了',
+      '⚠️ 根因不在数据库，在部署：排行榜后端是 Pages Functions（`functions/api/scores.js` + D1 绑定），而 Functions **属于每次部署的快照**。`wrangler pages deploy` 只认「当前目录 / `--cwd`」下的 `functions/`，wrangler 4 又已经移除了 3.x 的 `--functions` 参数 —— 上一次从工作区根跑 `pages deploy softlab/dist`，它找的是 `<工作区根>/functions`（没有），于是这次部署**不含任何 Functions**，线上函数被整个覆盖掉',
+      '症状：`GET /api/scores` 返回 index.html（SPA fallback），前端 `res.json()` 直接抛',
+      '数据没丢：D1 的 `scores` 表里 DOULOR / 11765 那条仍在；`sqlite_sequence` 的 `seq = 1` 说明建库以来总共只写入过这一条，从来没被删过',
+      '⚠️ 前端把「拉不到」和「没有成绩」混成了一件事：取数失败时静默留空，落到 `NO SCORES YET` —— 后端一掉线就会被读成「成绩被清空」。现在分三态（loading / ready / down），down 显示 `CANNOT REACH THE BOARD — SCORES ARE STILL SAFE` 并给一个 RETRY',
+      '部署脚本加固：`.cf-tools/deploy.sh` 显式带 `--cwd "$SRC"`；部署前断言 `functions/api/scores.js` 在；部署后**真发一次请求**，断言 `/api/scores` 回 `{"ok":true}`，否则非零退出 —— 少了这一步，函数漏传是静默的',
+      '新增 `node softlab/_verify_board.mjs`：本地 preview（无后端）验 down 态，`BASE=https://doit.loc.cc` 验列表态',
+    ],
+  },
   {
     version: 'V0.0.48',
     date: '2026-10-18',

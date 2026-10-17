@@ -338,6 +338,16 @@ export const BOARD_TEXT = {
   sending: 'SENDING',
   yourScore: 'YOUR SCORE',
   empty: 'NO SCORES YET',
+  /**
+   * 榜单**没拉到**（接口不存在 / 后端没随部署上传 / 断网）。
+   *
+   * 以前这里什么都不说，直接显示 `NO SCORES YET` —— 于是「接口挂了」和「真的一条
+   * 成绩都没有」在玩家眼里长得一模一样，就成了「一更新数据就没了」。两者必须分开说。
+   */
+  boardDown: 'CANNOT REACH THE BOARD — SCORES ARE STILL SAFE',
+  retry: 'RETRY',
+  /** 榜单首次取数。不用 `SENDING` —— 那是提交按钮的词 */
+  loading: 'LOADING',
   /** 提交被拒时给玩家看的话。键名是服务端的 `error` 字段 */
   errors: {
     'bad-name': 'NAME MUST BE A–Z / 0–9, 1–12 CHARS',
