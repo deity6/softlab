@@ -21,9 +21,24 @@ export interface ChangeEntry {
 }
 
 /** Bump the last number here on every change. */
-export const VERSION = 'V0.0.49';
+export const VERSION = 'V0.0.50';
 
 export const ENTRIES: ChangeEntry[] = [
+  {
+    version: 'V0.0.50',
+    date: '2026-10-18',
+    title: '手机能玩了：竖屏只给一句「横过来」，横屏把整个视口让给游戏',
+    items: [
+      '现象（用户真机截图）：竖屏下「PLAY」半透明地露在旋转提示后面，点也点不动；横屏下顶栏 91px + 实验标题栏 49px 占掉 36% 高度，画布只剩中间一条，虚拟按键压在裁切线上',
+      '⚠️ 判定轴错了：以前拿**宽度**断点（≤1011px）当「是不是手机」，可同一个 844px 横过来是手机、竖着是平板 —— 上一轮修顶栏溢出也是吃了这个亏。现在一律用 `orientation` + `pointer: coarse`',
+      '竖屏：**整个动作区不渲染**（PLAY / EXIT / SUBMIT / 眉标一起收掉）。以前只是把 PLAY 设成 `disabled`，于是它照样画在画面上被提示层压着露出半截，看着像一颗坏掉的按钮',
+      '竖屏：提示层 `.rotateHint` 铺满整块实验区。手法是把 wrapper 改回 `position: static`，让 `inset: 0` 的定位祖先从「画布那么高的 wrapper」变成 `.lab--mona`，一句 CSS 解决，不用拆组件',
+      '横屏手机：站点头部整块收掉、实验标题栏压到 45px（编号 / 标题 / 返回都留着，人不能被关在游戏里）、`.shell` 左右内边距归零 —— 实验页吃满 `100dvh`',
+      '⚠️ 画布底部**让出 74px** 给虚拟按键（实测值 = 按键 56 + 底边 10 + 边框），并且贴顶对齐。不让的话角色起跑点就在画布左下角，整只被 56px 的 ← 键盖住；`justify-content: center` 也不行，它会把让出的高度平分到上下',
+      '⚠️ 动作层（PLAY / EXIT）和 TOP 是 `.lab` 的子元素，不是 wrapper 的 —— 画布缩小居中后它们会停在旧位置（TOP 直接跑到画布外面的浅色边上）。动作层收 `bottom: 74px` 对齐画布，TOP 跟着画布左边缘走',
+      '实测 844×390：画布 698×271（屏宽 83%）、按键带 74px 在画布下方、无纵向滚动；桌面 1440 与竖屏 390 均未受影响',
+    ],
+  },
   {
     version: 'V0.0.49',
     date: '2026-10-18',

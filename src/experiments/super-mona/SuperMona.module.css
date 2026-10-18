@@ -710,3 +710,24 @@
     transform: translateY(0);
   }
 }
+
+/* ============ 横屏手机：按键落到画布**下面**那条带子里 ============
+ *
+ * `mona.css` 只对实验室这版让出了 66px（`(100cqh - 66px)`）并把 wrapper 的
+ * `overflow` 放开；这里负责把按键本身挪下去。两处配合才成立：
+ * 少了上面那步，按键就是贴着画布底部往下掉，被 `overflow: hidden` 裁掉一半。
+ *
+ * 只对 `[data-compact]` 生效 —— 独立站是「画布 + 下方栏」的原布局，按键本来
+ * 就在画布外面，不该被这条规则带偏。 */
+@media (orientation: landscape) and (max-height: 620px) and (pointer: coarse) {
+  /* ⚠️ `.touchPad` 是 wrapper 的**兄弟**（在 `.lab--mona` 里），它的定位祖先是
+     `.lab`，不是画布。所以这里不需要位移 —— `bottom: 0` 本来就贴着实验区底部，
+     而 `mona.css` 已经在画布下面留了同样高的一条带子。
+     （试过 `bottom: -66px`：那是在假设祖先为 wrapper，结果整组按键被推出屏幕外。）
+
+     动作层同理：它铺满 `.lab`，画布贴顶后中心会掉到画布下方，得把下边收回来，
+     让它正好盖住画布。 */
+  .actions[data-compact] {
+    bottom: 74px;
+  }
+}
